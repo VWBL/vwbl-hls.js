@@ -108,6 +108,18 @@ export default class KeyLoader implements ComponentAPI {
   }
 
   load(frag: Fragment): Promise<KeyLoadedData> {
+    if (this.config.encryptKey) {
+      const decryptdata = {...frag.decryptdata, key: this.config.encryptKey};
+      const keyInfo = {
+        decryptdata,
+        keyLoadPromise: null,
+        loader: null,
+        mediaKeySessionContext: null,
+      } as KeyLoaderInfo;
+      let newFrag = {...frag} as Fragment;
+      if(newFrag.decryptdata) newFrag.decryptdata.key = this.config.encryptKey;
+      return Promise.resolve({ frag: newFrag, keyInfo });
+    }
     if (!frag.decryptdata && frag.encrypted && this.emeController) {
       // Multiple keys, but none selected, resolve in eme-controller
       return this.emeController
