@@ -329,7 +329,8 @@ export type HlsConfig = {
   fpsController: typeof FPSController;
   progressive: boolean;
   lowLatencyMode: boolean;
-  primarySessionId?: string;
+  primarySessionId?: string; // Upstream change
+  encryptKey?: Uint8Array; // VWBL specific (cherry-picked)
 } & ABRControllerConfig &
   BufferControllerConfig &
   CapLevelControllerConfig &
