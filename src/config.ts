@@ -326,7 +326,7 @@ export type HlsConfig = {
   progressive: boolean;
   lowLatencyMode: boolean;
   primarySessionId?: string; // Upstream change
-  encryptKey?: Uint8Array; // VWBL specific (cherry-picked)
+  decryptKey?: Uint8Array; // VWBL specific (use name from latest commit)
 } & ABRControllerConfig &
   BufferControllerConfig &
   CapLevelControllerConfig &

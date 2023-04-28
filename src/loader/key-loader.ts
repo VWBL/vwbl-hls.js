@@ -112,12 +112,12 @@ export default class KeyLoader implements ComponentAPI {
   }
 
   load(frag: Fragment): Promise<KeyLoadedData> {
-    // VWBL specific: Use encryptKey if provided
-    if (this.config.encryptKey) {
+    // VWBL specific: Use decryptKey if provided
+    if (this.config.decryptKey) {
       // Create a simple object containing only the key.
       // Cast to 'any' to bypass LevelKey type requirements for now,
       // as other properties/methods might be irrelevant in this specific scenario.
-      const decryptdata: any = { key: this.config.encryptKey };
+      const decryptdata: any = { key: this.config.decryptKey };
 
       // Explicitly type keyInfo
       const keyInfo: KeyLoaderInfo = {
@@ -208,8 +208,8 @@ export default class KeyLoader implements ComponentAPI {
       mediaKeySessionContext: null,
     };
 
-    if (this.config.encryptKey) {
-      keyInfo.decryptdata.key = decryptdata.key = this.config.encryptKey;
+    if (this.config.decryptKey) {
+      keyInfo.decryptdata.key = decryptdata.key = this.config.decryptKey;
       // detach fragment key loader on load success
       frag.keyLoader = null;
       keyInfo.loader = null;
