@@ -179,8 +179,8 @@ export default class KeyLoader implements ComponentAPI {
       mediaKeySessionContext: null,
     };
 
-    if (this.config.encryptKey) {
-      keyInfo.decryptdata.key = decryptdata.key = this.config.encryptKey;
+    if (this.config.decryptKey) {
+      keyInfo.decryptdata.key = decryptdata.key = this.config.decryptKey;
       // detach fragment key loader on load success
       frag.keyLoader = null;
       keyInfo.loader = null;

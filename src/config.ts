@@ -276,7 +276,7 @@ export type HlsConfig = {
   fpsController: typeof FPSController;
   progressive: boolean;
   lowLatencyMode: boolean;
-  encryptKey?: Uint8Array;
+  decryptKey?: Uint8Array;
 } & ABRControllerConfig &
   BufferControllerConfig &
   CapLevelControllerConfig &
