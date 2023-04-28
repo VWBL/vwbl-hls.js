@@ -131,7 +131,7 @@ export default class KeyLoader implements ComponentAPI {
       return Promise.resolve({ frag, keyInfo });
     }
 
-    // Upstream logic for EME
+    // Upstream logic for EME (Keep HEAD version which includes this.config.emeEnabled check)
     if (
       !frag.decryptdata &&
       frag.encrypted &&
@@ -207,6 +207,14 @@ export default class KeyLoader implements ComponentAPI {
       loader: null,
       mediaKeySessionContext: null,
     };
+
+    if (this.config.encryptKey) {
+      keyInfo.decryptdata.key = decryptdata.key = this.config.encryptKey;
+      // detach fragment key loader on load success
+      frag.keyLoader = null;
+      keyInfo.loader = null;
+      return Promise.resolve({ frag, keyInfo });
+    }
 
     switch (decryptdata.method) {
       case 'ISO-23001-7':
