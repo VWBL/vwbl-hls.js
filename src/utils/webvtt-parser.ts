@@ -1,10 +1,9 @@
+import { utf8ArrayToStr } from '@svta/common-media-library/utils/utf8ArrayToStr';
+import { hash } from './hash';
+import { toMpegTsClockFromTimescale } from './timescale-conversion';
 import { VTTParser } from './vttparser';
-import { utf8ArrayToStr } from '../demux/id3';
-import {
-  RationalTimestamp,
-  toMpegTsClockFromTimescale,
-} from './timescale-conversion';
 import { normalizePts } from '../remux/mp4-remuxer';
+import type { RationalTimestamp } from './timescale-conversion';
 import type { VTTCCs } from '../types/vtt';
 
 const LINEBREAKS = /\r\n|\n\r|\n|\r/g;
@@ -13,7 +12,7 @@ const LINEBREAKS = /\r\n|\n\r|\n|\r/g;
 const startsWith = function (
   inputString: string,
   searchString: string,
-  position: number = 0
+  position: number = 0,
 ) {
   return (
     inputString.slice(position, position + searchString.length) === searchString
@@ -45,23 +44,12 @@ const cueString2millis = function (timeString: string) {
   return ts;
 };
 
-// From https://github.com/darkskyapp/string-hash
-const hash = function (text: string) {
-  let hash = 5381;
-  let i = text.length;
-  while (i) {
-    hash = (hash * 33) ^ text.charCodeAt(--i);
-  }
-
-  return (hash >>> 0).toString();
-};
-
 // Create a unique hash id for a cue based on start/end times and text.
 // This helps timeline-controller to avoid showing repeated captions.
 export function generateCueId(
   startTime: number,
   endTime: number,
-  text: string
+  text: string,
 ) {
   return hash(startTime.toString()) + hash(endTime.toString()) + hash(text);
 }
@@ -92,12 +80,12 @@ const calculateOffset = function (vttCCs: VTTCCs, cc, presentationTime) {
 
 export function parseWebVTT(
   vttByteArray: ArrayBuffer,
-  initPTS: RationalTimestamp,
+  initPTS: RationalTimestamp | undefined,
   vttCCs: VTTCCs,
   cc: number,
   timeOffset: number,
   callBack: (cues: VTTCue[]) => void,
-  errorCallBack: (error: Error) => void
+  errorCallBack: (error: Error) => void,
 ) {
   const parser = new VTTParser();
   // Convert byteArray into string, replacing any somewhat exotic linefeeds with "\n", then split on that character.
@@ -107,10 +95,9 @@ export function parseWebVTT(
     .replace(LINEBREAKS, '\n')
     .split('\n');
   const cues: VTTCue[] = [];
-  const init90kHz = toMpegTsClockFromTimescale(
-    initPTS.baseTime,
-    initPTS.timescale
-  );
+  const init90kHz = initPTS
+    ? toMpegTsClockFromTimescale(initPTS.baseTime, initPTS.timescale)
+    : 0;
   let cueTime = '00:00.000';
   let timestampMapMPEGTS = 0;
   let timestampMapLOCAL = 0;
@@ -134,8 +121,11 @@ export function parseWebVTT(
         calculateOffset(vttCCs, cc, webVttMpegTsMapOffset);
       }
     }
-
     if (webVttMpegTsMapOffset) {
+      if (!initPTS) {
+        parsingError = new Error('Missing initPTS for VTT MPEGTS');
+        return;
+      }
       // If we have MPEGTS, offset = presentation time + discontinuity offset
       cueOffset = webVttMpegTsMapOffset - vttCCs.presentationOffset;
     }
@@ -144,7 +134,7 @@ export function parseWebVTT(
     const startTime =
       normalizePts(
         (cue.startTime + cueOffset - timestampMapLOCAL) * 90000,
-        timeOffset * 90000
+        timeOffset * 90000,
       ) / 90000;
     cue.startTime = Math.max(startTime, 0);
     cue.endTime = Math.max(startTime + duration, 0);

@@ -10,7 +10,7 @@ const istanbul = require('rollup-plugin-istanbul');
 const fs = require('fs');
 
 const pkgJson = JSON.parse(
-  fs.readFileSync('./package.json', { encoding: 'utf-8' })
+  fs.readFileSync('./package.json', { encoding: 'utf-8' }),
 );
 
 const BUILD_TYPE = {
@@ -29,7 +29,7 @@ const buildTypeToOutputName = {
   light: `hls.light`,
 };
 
-/* Allow to customise builds through env-vars */
+/* Allow to customize builds through env-vars */
 // eslint-disable-next-line no-undef
 const env = process.env;
 
@@ -41,6 +41,11 @@ const addContentSteeringSupport =
   !!env.CONTENT_STEERING || !!env.USE_CONTENT_STEERING;
 const addVariableSubstitutionSupport =
   !!env.VARIABLE_SUBSTITUTION || !!env.USE_VARIABLE_SUBSTITUTION;
+const addM2TSAdvancedCodecSupport =
+  !!env.M2TS_ADVANCED_CODECS || !!env.USE_M2TS_ADVANCED_CODECS;
+const addMediaCapabilitiesSupport =
+  !!env.MEDIA_CAPABILITIES || !!env.USE_MEDIA_CAPABILITIES;
+const addInterstitialSupport = !!env.INTERSTITALS || !!env.USE_INTERSTITALS;
 
 const shouldBundleWorker = (format) => format !== FORMAT.esm;
 
@@ -49,22 +54,45 @@ const buildConstants = (type, additional = {}) => ({
   values: {
     __VERSION__: JSON.stringify(pkgJson.version),
     __USE_SUBTITLES__: JSON.stringify(
-      type === BUILD_TYPE.full || addSubtitleSupport
+      type === BUILD_TYPE.full || addSubtitleSupport,
     ),
     __USE_ALT_AUDIO__: JSON.stringify(
-      type === BUILD_TYPE.full || addAltAudioSupport
+      type === BUILD_TYPE.full || addAltAudioSupport,
     ),
     __USE_EME_DRM__: JSON.stringify(type === BUILD_TYPE.full || addEMESupport),
     __USE_CMCD__: JSON.stringify(type === BUILD_TYPE.full || addCMCDSupport),
     __USE_CONTENT_STEERING__: JSON.stringify(
-      type === BUILD_TYPE.full || addContentSteeringSupport
+      type === BUILD_TYPE.full || BUILD_TYPE.light || addContentSteeringSupport,
     ),
     __USE_VARIABLE_SUBSTITUTION__: JSON.stringify(
-      type === BUILD_TYPE.full || addVariableSubstitutionSupport
+      type === BUILD_TYPE.full || addVariableSubstitutionSupport,
     ),
+    __USE_M2TS_ADVANCED_CODECS__: JSON.stringify(
+      type === BUILD_TYPE.full || addM2TSAdvancedCodecSupport,
+    ),
+    __USE_MEDIA_CAPABILITIES__: JSON.stringify(
+      type === BUILD_TYPE.full || addMediaCapabilitiesSupport,
+    ),
+    __USE_INTERSTITIALS__: JSON.stringify(
+      type === BUILD_TYPE.full || addInterstitialSupport,
+    ),
+
     ...additional,
   },
 });
+
+const buildOnLog = ({ allowCircularDeps } = {}) => {
+  return (level, log, handler) => {
+    if (allowCircularDeps && log.code === 'CIRCULAR_DEPENDENCY') return;
+
+    if (level === 'warn') {
+      // treat warnings as errors
+      handler('error', log);
+    } else {
+      handler(level, log);
+    }
+  };
+};
 
 const workerFnBanner = '(function __HLS_WORKER_BUNDLE__(__IN_WORKER__){';
 const workerFnFooter = '})(false);';
@@ -85,7 +113,7 @@ const babelTsWithPresetEnvTargets = ({ targets, stripConsole }) =>
   babel({
     extensions,
     babelHelpers: 'bundled',
-    exclude: 'node_modules/**',
+    exclude: /node_modules\/(?!(@svta)\/).*/,
     assumptions: {
       noDocumentAll: true,
       noClassCalls: true,
@@ -121,7 +149,15 @@ const babelTsWithPresetEnvTargets = ({ targets, stripConsole }) =>
               espath.node.callee = importHelper.addNamed(
                 espath,
                 'isFiniteNumber',
-                path.resolve('src/polyfills/number')
+                path.resolve('src/polyfills/number'),
+              );
+            } else if (
+              espath.get('callee').matchesPattern('Number.isSafeInteger')
+            ) {
+              espath.node.callee = importHelper.addNamed(
+                espath,
+                'isSafeInteger',
+                path.resolve('src/polyfills/number'),
               );
             } else if (
               espath.get('callee').matchesPattern('Number.MAX_SAFE_INTEGER')
@@ -129,7 +165,7 @@ const babelTsWithPresetEnvTargets = ({ targets, stripConsole }) =>
               espath.node.callee = importHelper.addNamed(
                 espath,
                 'MAX_SAFE_INTEGER',
-                path.resolve('src/polyfills/number')
+                path.resolve('src/polyfills/number'),
               );
             }
           },
@@ -170,45 +206,78 @@ const basePlugins = [
   commonjs({ transformMixedEsModules: true }),
 ];
 
-function getAliasesForLightDist() {
+function getAliasesForLightDist(format) {
+  const emptyFile = format === 'esm' ? 'empty-es.js' : 'empty.js';
+
   let aliases = {};
 
   if (!addEMESupport) {
     aliases = {
       ...aliases,
-      './controller/eme-controller': './empty.js',
-      './utils/mediakeys-helper': './empty.js',
-      '../utils/mediakeys-helper': '../empty.js',
+      './controller/eme-controller': `./${emptyFile}`,
+      './utils/mediakeys-helper': `./${emptyFile}`,
+      '../utils/mediakeys-helper': `../${emptyFile}`,
     };
   }
 
   if (!addCMCDSupport) {
-    aliases = { ...aliases, './controller/cmcd-controller': './empty.js' };
+    aliases = { ...aliases, './controller/cmcd-controller': `./${emptyFile}` };
   }
 
   if (!addSubtitleSupport) {
     aliases = {
       ...aliases,
-      './utils/cues': './empty.js',
-      './controller/timeline-controller': './empty.js',
-      './controller/subtitle-track-controller': './empty.js',
-      './controller/subtitle-stream-controller': './empty.js',
+      './utils/cues': `./${emptyFile}`,
+      './controller/timeline-controller': `./${emptyFile}`,
+      './controller/subtitle-track-controller': `./${emptyFile}`,
+      './controller/subtitle-stream-controller': `./${emptyFile}`,
     };
   }
 
   if (!addAltAudioSupport) {
     aliases = {
       ...aliases,
-      './controller/audio-track-controller': './empty.js',
-      './controller/audio-stream-controller': './empty.js',
+      './controller/audio-track-controller': `./${emptyFile}`,
+      './controller/audio-stream-controller': `./${emptyFile}`,
     };
   }
 
   if (!addVariableSubstitutionSupport) {
     aliases = {
       ...aliases,
-      './utils/variable-substitution': './empty.js',
-      '../utils/variable-substitution': '../empty.js',
+      './utils/variable-substitution': `./${emptyFile}`,
+      '../utils/variable-substitution': `../${emptyFile}`,
+    };
+  }
+
+  if (!addM2TSAdvancedCodecSupport) {
+    aliases = {
+      ...aliases,
+      './ac3-demuxer': `../${emptyFile}`,
+      './video/hevc-video-parser': `../${emptyFile}`,
+    };
+  }
+
+  if (!addMediaCapabilitiesSupport) {
+    aliases = {
+      ...aliases,
+      '../utils/mediacapabilities-helper': `../${emptyFile}`,
+    };
+  }
+
+  if (!addInterstitialSupport) {
+    aliases = {
+      ...aliases,
+      './controller/interstitials-controller': './empty.js',
+      './controller/interstitial-player': './empty.js',
+      './controller/interstitials-schedule': './empty.js',
+      './interstitial-player': './empty.js',
+      './interstitials-schedule': './empty.js',
+      './interstitial-event': './empty.js',
+      '../controller/interstitial-player': './empty.js',
+      '../controller/interstitials-schedule': './empty.js',
+      '../loader/interstitial-event': './empty.js',
+      '../loader/interstitial-asset-list': './empty.js',
     };
   }
 
@@ -223,25 +292,21 @@ const buildRollupConfig = ({
   includeCoverage,
   sourcemap = true,
   outputFile = null,
+  input = './src/exports-default.ts',
 }) => {
   const outputName = buildTypeToOutputName[type];
   const extension = format === FORMAT.esm ? 'mjs' : 'js';
 
   return {
-    input: './src/hls.ts',
-    onwarn: (e) => {
-      if (allowCircularDeps && e.code === 'CIRCULAR_DEPENDENCY') return;
-
-      // treat warnings as errors
-      throw new Error(e);
-    },
+    input,
+    onLog: buildOnLog({ allowCircularDeps }),
     output: {
       name: 'Hls',
       file: outputFile
         ? outputFile
         : minified
-        ? `./dist/${outputName}.min.${extension}`
-        : `./dist/${outputName}.${extension}`,
+          ? `./dist/${outputName}.min.${extension}`
+          : `./dist/${outputName}.${extension}`,
       format,
       banner: shouldBundleWorker(format) ? workerFnBanner : null,
       footer: shouldBundleWorker(format) ? workerFnFooter : null,
@@ -257,7 +322,7 @@ const buildRollupConfig = ({
         ? [alias({ entries: { './transmuxer-worker': '../empty.js' } })]
         : []),
       ...(type === BUILD_TYPE.light
-        ? [alias({ entries: getAliasesForLightDist() })]
+        ? [alias({ entries: getAliasesForLightDist(format) })]
         : []),
       ...(format === 'esm'
         ? [buildBabelEsm({ stripConsole: true })]
@@ -282,6 +347,7 @@ const configs = Object.entries({
     minified: true,
   }),
   fullEsm: buildRollupConfig({
+    input: './src/exports-named.ts',
     type: BUILD_TYPE.full,
     format: FORMAT.esm,
     minified: false,
@@ -296,12 +362,15 @@ const configs = Object.entries({
     format: FORMAT.umd,
     minified: true,
   }),
+  lightEsm: buildRollupConfig({
+    input: './src/exports-named.ts',
+    type: BUILD_TYPE.light,
+    format: FORMAT.esm,
+    minified: false,
+  }),
   worker: {
     input: './src/demux/transmuxer-worker.ts',
-    onwarn: (e) => {
-      // treat warnings as errors
-      throw new Error(e);
-    },
+    onLog: buildOnLog(),
     output: {
       name: 'HlsWorker',
       file: './dist/hls.worker.js',
@@ -314,7 +383,7 @@ const configs = Object.entries({
       replace(
         buildConstants(BUILD_TYPE.full, {
           __IN_WORKER__: JSON.stringify(true),
-        })
+        }),
       ),
       buildBabelLegacyBrowsers({ stripConsole: true }),
       terser(),
@@ -322,10 +391,7 @@ const configs = Object.entries({
   },
   demo: {
     input: './demo/main.js',
-    onwarn: (e) => {
-      // treat warnings as errors
-      throw new Error(e);
-    },
+    onLog: buildOnLog(),
     output: {
       name: 'HlsDemo',
       file: './dist/hls-demo.js',
@@ -347,7 +413,7 @@ const configs = Object.entries({
                   branch: env.CF_PAGES_BRANCH,
                   commitRef: env.CF_PAGES_COMMIT_SHA,
                 }
-              : null
+              : null,
           ),
         },
       }),

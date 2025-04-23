@@ -21,7 +21,7 @@ class EwmaBandWidthEstimator {
     slow: number,
     fast: number,
     defaultEstimate: number,
-    defaultTTFB: number = 100
+    defaultTTFB: number = 100,
   ) {
     this.defaultEstimate_ = defaultEstimate;
     this.minWeight_ = 0.001;
@@ -86,6 +86,10 @@ class EwmaBandWidthEstimator {
     } else {
       return this.defaultTTFB_;
     }
+  }
+
+  get defaultEstimate(): number {
+    return this.defaultEstimate_;
   }
 
   destroy() {}

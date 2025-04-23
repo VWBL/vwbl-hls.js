@@ -1,21 +1,20 @@
-import Hls from '../../../src/hls';
-import { Events } from '../../../src/events';
+import chai from 'chai';
+import sinonChai from 'sinon-chai';
 import {
-  FragmentTracker,
   FragmentState,
+  FragmentTracker,
 } from '../../../src/controller/fragment-tracker';
+import { Events } from '../../../src/events';
+import Hls from '../../../src/hls';
+import { ElementaryStreamTypes, Fragment } from '../../../src/loader/fragment';
+import { LoadStats } from '../../../src/loader/load-stats';
 import { PlaylistLevelType } from '../../../src/types/loader';
 import { ChunkMetadata } from '../../../src/types/transmuxer';
-import { Fragment, ElementaryStreamTypes } from '../../../src/loader/fragment';
-import { LoadStats } from '../../../src/loader/load-stats';
 import type {
   BufferAppendedData,
   FragBufferedData,
   FragLoadedData,
 } from '../../../src/types/events';
-
-import chai from 'chai';
-import sinonChai from 'sinon-chai';
 
 chai.use(sinonChai);
 const expect = chai.expect;
@@ -33,7 +32,7 @@ describe('FragmentTracker', function () {
         level: 1,
         type: PlaylistLevelType.MAIN,
       },
-      [ElementaryStreamTypes.AUDIO, ElementaryStreamTypes.VIDEO]
+      [ElementaryStreamTypes.AUDIO, ElementaryStreamTypes.VIDEO],
     );
 
     triggerFragLoaded(hls, fragment);
@@ -45,7 +44,7 @@ describe('FragmentTracker', function () {
           startPTS: 0,
           endPTS: 0.5,
         },
-      ])
+      ]),
     );
 
     hls.trigger(Events.FRAG_BUFFERED, createFragBufferedData(fragment, true));
@@ -79,7 +78,7 @@ describe('FragmentTracker', function () {
           level: 0,
           type: PlaylistLevelType.MAIN,
         },
-        [ElementaryStreamTypes.AUDIO, ElementaryStreamTypes.VIDEO]
+        [ElementaryStreamTypes.AUDIO, ElementaryStreamTypes.VIDEO],
       );
       triggerFragLoaded(hls, fragment);
       return fragment;
@@ -88,7 +87,7 @@ describe('FragmentTracker', function () {
     it('detects fragments that never loaded', function () {
       const fragment = addFragment();
       expect(fragmentTracker.getState(fragment)).to.equal(
-        FragmentState.APPENDING
+        FragmentState.APPENDING,
       );
     });
 
@@ -101,7 +100,7 @@ describe('FragmentTracker', function () {
             startPTS: 0,
             endPTS: 1,
           },
-        ])
+        ]),
       );
 
       hls.trigger(Events.FRAG_BUFFERED, createFragBufferedData(fragment, true));
@@ -118,13 +117,13 @@ describe('FragmentTracker', function () {
             startPTS: 0.5,
             endPTS: 2,
           },
-        ])
+        ]),
       );
 
       hls.trigger(Events.FRAG_BUFFERED, createFragBufferedData(fragment, true));
 
       expect(fragmentTracker.getState(fragment)).to.equal(
-        FragmentState.PARTIAL
+        FragmentState.PARTIAL,
       );
     });
 
@@ -137,13 +136,13 @@ describe('FragmentTracker', function () {
             startPTS: 0.5,
             endPTS: 2,
           },
-        ])
+        ]),
       );
 
       hls.trigger(Events.FRAG_BUFFERED, createFragBufferedData(fragment, true));
 
       expect(fragmentTracker.getState(fragment)).to.equal(
-        FragmentState.PARTIAL
+        FragmentState.PARTIAL,
       );
 
       // Trim the buffer
@@ -154,11 +153,11 @@ describe('FragmentTracker', function () {
             startPTS: 0.75,
             endPTS: 2,
           },
-        ])
+        ]),
       );
 
       expect(fragmentTracker.getState(fragment)).to.equal(
-        FragmentState.NOT_LOADED
+        FragmentState.NOT_LOADED,
       );
     });
   });
@@ -181,7 +180,7 @@ describe('FragmentTracker', function () {
             level: 1,
             type: PlaylistLevelType.MAIN,
           },
-          [ElementaryStreamTypes.AUDIO, ElementaryStreamTypes.VIDEO]
+          [ElementaryStreamTypes.AUDIO, ElementaryStreamTypes.VIDEO],
         ),
         // 1-2
         createMockFragment(
@@ -192,7 +191,7 @@ describe('FragmentTracker', function () {
             level: 1,
             type: PlaylistLevelType.MAIN,
           },
-          [ElementaryStreamTypes.AUDIO, ElementaryStreamTypes.VIDEO]
+          [ElementaryStreamTypes.AUDIO, ElementaryStreamTypes.VIDEO],
         ),
         // 2-3
         createMockFragment(
@@ -203,7 +202,7 @@ describe('FragmentTracker', function () {
             level: 1,
             type: PlaylistLevelType.MAIN,
           },
-          [ElementaryStreamTypes.AUDIO, ElementaryStreamTypes.VIDEO]
+          [ElementaryStreamTypes.AUDIO, ElementaryStreamTypes.VIDEO],
         ),
       ];
       // load fragments to buffered
@@ -214,34 +213,34 @@ describe('FragmentTracker', function () {
             startPTS: 0,
             endPTS: 3,
           },
-        ])
+        ]),
       );
       fragments.forEach((fragment) => {
         triggerFragLoadedAndFragBuffered(hls, fragment);
       });
       expect(
-        fragmentTracker.getBufferedFrag(0.0, PlaylistLevelType.MAIN)
+        fragmentTracker.getBufferedFrag(0.0, PlaylistLevelType.MAIN),
       ).to.equal(fragments[0]);
       expect(
-        fragmentTracker.getBufferedFrag(0.1, PlaylistLevelType.MAIN)
+        fragmentTracker.getBufferedFrag(0.1, PlaylistLevelType.MAIN),
       ).to.equal(fragments[0]);
       expect(
-        fragmentTracker.getBufferedFrag(1.0, PlaylistLevelType.MAIN)
+        fragmentTracker.getBufferedFrag(1.0, PlaylistLevelType.MAIN),
       ).to.equal(fragments[1]);
       expect(
-        fragmentTracker.getBufferedFrag(1.1, PlaylistLevelType.MAIN)
+        fragmentTracker.getBufferedFrag(1.1, PlaylistLevelType.MAIN),
       ).to.equal(fragments[1]);
       expect(
-        fragmentTracker.getBufferedFrag(2.0, PlaylistLevelType.MAIN)
+        fragmentTracker.getBufferedFrag(2.0, PlaylistLevelType.MAIN),
       ).to.equal(fragments[2]);
       expect(
-        fragmentTracker.getBufferedFrag(2.1, PlaylistLevelType.MAIN)
+        fragmentTracker.getBufferedFrag(2.1, PlaylistLevelType.MAIN),
       ).to.equal(fragments[2]);
       expect(
-        fragmentTracker.getBufferedFrag(2.9, PlaylistLevelType.MAIN)
+        fragmentTracker.getBufferedFrag(2.9, PlaylistLevelType.MAIN),
       ).to.equal(fragments[2]);
       expect(
-        fragmentTracker.getBufferedFrag(3.0, PlaylistLevelType.MAIN)
+        fragmentTracker.getBufferedFrag(3.0, PlaylistLevelType.MAIN),
       ).to.equal(fragments[2]);
     });
     it('should return null if found it, but it is not buffered', function () {
@@ -255,7 +254,7 @@ describe('FragmentTracker', function () {
             level: 1,
             type: PlaylistLevelType.MAIN,
           },
-          [ElementaryStreamTypes.AUDIO, ElementaryStreamTypes.VIDEO]
+          [ElementaryStreamTypes.AUDIO, ElementaryStreamTypes.VIDEO],
         ),
         // 1-2
         createMockFragment(
@@ -266,7 +265,7 @@ describe('FragmentTracker', function () {
             level: 1,
             type: PlaylistLevelType.MAIN,
           },
-          [ElementaryStreamTypes.AUDIO, ElementaryStreamTypes.VIDEO]
+          [ElementaryStreamTypes.AUDIO, ElementaryStreamTypes.VIDEO],
         ),
         // 2-3
         createMockFragment(
@@ -277,7 +276,7 @@ describe('FragmentTracker', function () {
             level: 1,
             type: PlaylistLevelType.MAIN,
           },
-          [ElementaryStreamTypes.AUDIO, ElementaryStreamTypes.VIDEO]
+          [ElementaryStreamTypes.AUDIO, ElementaryStreamTypes.VIDEO],
         ),
       ];
       // load fragments, but it is not buffered
@@ -304,8 +303,8 @@ describe('FragmentTracker', function () {
             level: 1,
             type: PlaylistLevelType.MAIN,
           },
-          [ElementaryStreamTypes.AUDIO, ElementaryStreamTypes.VIDEO]
-        )
+          [ElementaryStreamTypes.AUDIO, ElementaryStreamTypes.VIDEO],
+        ),
       );
       // not found
       expect(fragmentTracker.getBufferedFrag(1.1, PlaylistLevelType.MAIN)).to
@@ -326,8 +325,8 @@ describe('FragmentTracker', function () {
             level: 1,
             type: PlaylistLevelType.AUDIO, // <= level type is not "main"
           },
-          [ElementaryStreamTypes.AUDIO, ElementaryStreamTypes.VIDEO]
-        )
+          [ElementaryStreamTypes.AUDIO, ElementaryStreamTypes.VIDEO],
+        ),
       );
 
       expect(fragmentTracker.getBufferedFrag(0, PlaylistLevelType.MAIN)).to.not
@@ -350,7 +349,7 @@ describe('FragmentTracker', function () {
           level: 1,
           type: PlaylistLevelType.MAIN,
         },
-        [ElementaryStreamTypes.AUDIO, ElementaryStreamTypes.VIDEO]
+        [ElementaryStreamTypes.AUDIO, ElementaryStreamTypes.VIDEO],
       );
 
       triggerFragLoaded(hls, fragment);
@@ -369,14 +368,14 @@ describe('FragmentTracker', function () {
               startPTS: 0.5,
               endPTS: 2,
             },
-          ]
-        )
+          ],
+        ),
       );
 
       hls.trigger(Events.FRAG_BUFFERED, createFragBufferedData(fragment, true));
 
       expect(fragmentTracker.getState(fragment)).to.equal(
-        FragmentState.PARTIAL
+        FragmentState.PARTIAL,
       );
     });
 
@@ -389,7 +388,7 @@ describe('FragmentTracker', function () {
           level: 1,
           type: PlaylistLevelType.MAIN,
         },
-        [ElementaryStreamTypes.AUDIO, ElementaryStreamTypes.VIDEO]
+        [ElementaryStreamTypes.AUDIO, ElementaryStreamTypes.VIDEO],
       );
 
       triggerFragLoaded(hls, fragment);
@@ -408,14 +407,14 @@ describe('FragmentTracker', function () {
               startPTS: 0,
               endPTS: 2,
             },
-          ]
-        )
+          ],
+        ),
       );
 
       hls.trigger(Events.FRAG_BUFFERED, createFragBufferedData(fragment, true));
 
       expect(fragmentTracker.getState(fragment)).to.equal(
-        FragmentState.PARTIAL
+        FragmentState.PARTIAL,
       );
     });
 
@@ -428,7 +427,7 @@ describe('FragmentTracker', function () {
           level: 1,
           type: PlaylistLevelType.AUDIO,
         },
-        [ElementaryStreamTypes.AUDIO]
+        [ElementaryStreamTypes.AUDIO],
       );
 
       triggerFragLoaded(hls, fragment);
@@ -447,8 +446,8 @@ describe('FragmentTracker', function () {
               startPTS: 0,
               endPTS: 2,
             },
-          ]
-        )
+          ],
+        ),
       );
 
       hls.trigger(Events.FRAG_BUFFERED, createFragBufferedData(fragment, true));
@@ -471,7 +470,7 @@ describe('FragmentTracker', function () {
     beforeEach(function () {
       hls = new Hls({});
       fragmentTracker = new FragmentTracker(
-        hls
+        hls,
       ) as unknown as FragmentTrackerTestable;
     });
     it('should remove fragment', function () {
@@ -483,7 +482,7 @@ describe('FragmentTracker', function () {
           level: 1,
           type: PlaylistLevelType.MAIN,
         },
-        [ElementaryStreamTypes.AUDIO, ElementaryStreamTypes.VIDEO]
+        [ElementaryStreamTypes.AUDIO, ElementaryStreamTypes.VIDEO],
       );
       // load fragments to buffered
       hls.trigger(
@@ -493,7 +492,7 @@ describe('FragmentTracker', function () {
             startPTS: 0,
             endPTS: 1,
           },
-        ])
+        ]),
       );
       triggerFragLoadedAndFragBuffered(hls, fragment);
       expect(fragmentTracker.hasFragment(fragment)).to.be.true;
@@ -509,7 +508,7 @@ describe('FragmentTracker', function () {
     beforeEach(function () {
       hls = new Hls({});
       fragmentTracker = new FragmentTracker(
-        hls
+        hls,
       ) as unknown as FragmentTrackerTestable;
     });
     it('should remove all fragments', function () {
@@ -523,7 +522,7 @@ describe('FragmentTracker', function () {
             level: 1,
             type: PlaylistLevelType.MAIN,
           },
-          [ElementaryStreamTypes.AUDIO, ElementaryStreamTypes.VIDEO]
+          [ElementaryStreamTypes.AUDIO, ElementaryStreamTypes.VIDEO],
         ),
         // 1-2
         createMockFragment(
@@ -534,7 +533,7 @@ describe('FragmentTracker', function () {
             level: 1,
             type: PlaylistLevelType.MAIN,
           },
-          [ElementaryStreamTypes.AUDIO, ElementaryStreamTypes.VIDEO]
+          [ElementaryStreamTypes.AUDIO, ElementaryStreamTypes.VIDEO],
         ),
         // 2-3
         createMockFragment(
@@ -545,7 +544,7 @@ describe('FragmentTracker', function () {
             level: 1,
             type: PlaylistLevelType.MAIN,
           },
-          [ElementaryStreamTypes.AUDIO, ElementaryStreamTypes.VIDEO]
+          [ElementaryStreamTypes.AUDIO, ElementaryStreamTypes.VIDEO],
         ),
       ];
       // load fragments to buffered
@@ -556,7 +555,7 @@ describe('FragmentTracker', function () {
             startPTS: 0,
             endPTS: 3,
           },
-        ])
+        ]),
       );
       fragments.forEach((fragment) => {
         triggerFragLoadedAndFragBuffered(hls, fragment);
@@ -565,7 +564,7 @@ describe('FragmentTracker', function () {
       fragments.forEach((fragment) => {
         expect(
           fragmentTracker.hasFragment(fragment),
-          'has fragments before removing'
+          'has fragments before removing',
         ).to.be.true;
       });
       // Remove all fragments
@@ -574,7 +573,7 @@ describe('FragmentTracker', function () {
       fragments.forEach((fragment) => {
         expect(
           fragmentTracker.hasFragment(fragment),
-          'has not fragments after removing'
+          'has not fragments after removing',
         ).to.be.false;
       });
     });
@@ -602,7 +601,7 @@ function createMockBuffer(buffered: PtsTimeRanges): TimeRanges {
 
 function createBufferAppendedData(
   video: PtsTimeRanges,
-  audio?: PtsTimeRanges
+  audio?: PtsTimeRanges,
 ): BufferAppendedData {
   return {
     chunkMeta: new ChunkMetadata(0, 0, 0, 0),
@@ -619,7 +618,7 @@ function createBufferAppendedData(
 
 function createFragBufferedData(
   frag: Fragment,
-  aborted?: boolean
+  aborted?: boolean,
 ): FragBufferedData {
   const stats = new LoadStats();
   if (aborted) {
@@ -652,7 +651,7 @@ type MockFragmentParams = {
 
 function createMockFragment(
   data: MockFragmentParams,
-  types: ElementaryStreamTypes[]
+  types: ElementaryStreamTypes[],
 ): Fragment {
   const frag = new Fragment(data.type, '');
   Object.assign(frag, data);
@@ -664,8 +663,9 @@ function createMockFragment(
       data.startPTS,
       data.endPTS,
       data.startPTS,
-      data.endPTS
+      data.endPTS,
     );
   });
+  frag.relurl = 'not-frag-hint';
   return frag;
 }

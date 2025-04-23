@@ -303,6 +303,17 @@ function loadSelectedStream() {
 
   url = $('#streamURL').val();
 
+  // Check if the URL is valid to avoid XSS issue.
+  if (url) {
+    try {
+      new URL(url);
+    } catch (error) {
+      $('#streamURL').val('');
+      alert('Invalid URL');
+      return false;
+    }
+  }
+
   setupGlobals();
   hideCanvas();
 
@@ -1465,8 +1476,8 @@ function getURLParam(sParam, defaultValue) {
       return sParameterName[1] === 'undefined'
         ? undefined
         : sParameterName[1] === 'false'
-        ? false
-        : sParameterName[1];
+          ? false
+          : sParameterName[1];
     }
   }
   return defaultValue;

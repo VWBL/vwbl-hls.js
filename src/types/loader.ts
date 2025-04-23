@@ -1,9 +1,10 @@
 import type { LoaderConfig } from '../config';
+import type { HlsUrlParameters, Level } from './level';
+import type { MediaPlaylist } from './media-playlist';
 import type { Fragment } from '../loader/fragment';
 import type { Part } from '../loader/fragment';
 import type { KeyLoaderInfo } from '../loader/key-loader';
 import type { LevelDetails } from '../loader/level-details';
-import type { HlsUrlParameters } from './level';
 
 export interface LoaderContext {
   // target URL
@@ -99,14 +100,14 @@ export type LoaderOnSuccess<T extends LoaderContext> = (
   response: LoaderResponse,
   stats: LoaderStats,
   context: T,
-  networkDetails: any
+  networkDetails: any,
 ) => void;
 
 export type LoaderOnProgress<T extends LoaderContext> = (
   stats: LoaderStats,
   context: T,
   data: string | ArrayBuffer,
-  networkDetails: any
+  networkDetails: any,
 ) => void;
 
 export type LoaderOnError<T extends LoaderContext> = (
@@ -118,19 +119,19 @@ export type LoaderOnError<T extends LoaderContext> = (
   },
   context: T,
   networkDetails: any,
-  stats: LoaderStats
+  stats: LoaderStats,
 ) => void;
 
 export type LoaderOnTimeout<T extends LoaderContext> = (
   stats: LoaderStats,
   context: T,
-  networkDetails: any
+  networkDetails: any,
 ) => void;
 
 export type LoaderOnAbort<T extends LoaderContext> = (
   stats: LoaderStats,
   context: T,
-  networkDetails: any
+  networkDetails: any,
 ) => void;
 
 export interface LoaderCallbacks<T extends LoaderContext> {
@@ -145,9 +146,9 @@ export interface Loader<T extends LoaderContext> {
   destroy(): void;
   abort(): void;
   load(
-    context: LoaderContext,
+    context: T,
     config: LoaderConfiguration,
-    callbacks: LoaderCallbacks<T>
+    callbacks: LoaderCallbacks<T>,
   ): void;
   /**
    * `getCacheAge()` is called by hls.js to get the duration that a given object
@@ -160,7 +161,7 @@ export interface Loader<T extends LoaderContext> {
    */
   getCacheAge?: () => number | null;
   getResponseHeader?: (name: string) => string | null;
-  context: T;
+  context: T | null;
   stats: LoaderStats;
 }
 
@@ -183,10 +184,14 @@ export interface PlaylistLoaderContext extends LoaderContext {
   level: number | null;
   // level or track id from LevelLoadingData / TrackLoadingData
   id: number | null;
-  // track group id
+  // Media Playlist Group ID
   groupId?: string;
+  // Content Steering Pathway ID (or undefined for default Pathway ".")
+  pathwayId?: string;
   // internal representation of a parsed m3u8 level playlist
   levelDetails?: LevelDetails;
   // Blocking playlist request delivery directives (or null id none were added to playlist url
   deliveryDirectives: HlsUrlParameters | null;
+  // Reference to level or track object in hls.levels, hls.allAudioTracks, or hls.allSubtitleTracks (null when loading MVP)
+  levelOrTrack: Level | MediaPlaylist | null;
 }

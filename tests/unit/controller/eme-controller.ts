@@ -1,15 +1,14 @@
-import EMEController, {
-  MediaKeySessionContext,
-} from '../../../src/controller/eme-controller';
-import HlsMock from '../../mocks/hls.mock';
+import chai from 'chai';
 import { EventEmitter } from 'eventemitter3';
+import sinon from 'sinon';
+import sinonChai from 'sinon-chai';
+import EMEController from '../../../src/controller/eme-controller';
 import { ErrorDetails } from '../../../src/errors';
 import { Events } from '../../../src/events';
-
-import sinon from 'sinon';
-import chai from 'chai';
-import sinonChai from 'sinon-chai';
-import { MediaAttachedData } from '../../../src/types/events';
+import { KeySystemFormats } from '../../../src/utils/mediakeys-helper';
+import HlsMock from '../../mocks/hls.mock';
+import type { MediaKeySessionContext } from '../../../src/controller/eme-controller';
+import type { MediaAttachedData } from '../../../src/types/events';
 
 chai.use(sinonChai);
 const expect = chai.expect;
@@ -25,9 +24,11 @@ type EMEControllerTestable = Omit<
   mediaKeySessions: MediaKeySessionContext[];
   onMediaAttached: (
     event: Events.MEDIA_ATTACHED,
-    data: MediaAttachedData
+    data: MediaAttachedData,
   ) => void;
   onMediaDetached: () => void;
+  media: HTMLMediaElement | null;
+  onKeyStatusChange: (mediaKeySessionContext: MediaKeySessionContext) => void;
 };
 
 class MediaMock extends EventEmitter {
@@ -37,10 +38,38 @@ class MediaMock extends EventEmitter {
   constructor() {
     super();
     this.setMediaKeys = sinon.spy((mediaKeys: MediaKeys | null) =>
-      Promise.resolve()
+      Promise.resolve(),
     );
     this.addEventListener = this.addListener.bind(this);
     this.removeEventListener = this.removeListener.bind(this);
+  }
+}
+
+class MediaKeySessionMock extends EventEmitter {
+  addEventListener: any;
+  removeEventListener: any;
+  keyStatuses: Map<Uint8Array, string>;
+  constructor() {
+    super();
+    this.keyStatuses = new Map();
+    this.addEventListener = this.addListener.bind(this);
+    this.removeEventListener = this.removeListener.bind(this);
+  }
+  generateRequest() {
+    return Promise.resolve().then(() => {
+      this.emit('message', {
+        messageType: 'license-request',
+        message: new Uint8Array(0),
+      });
+      this.keyStatuses.set(new Uint8Array(0), 'usable');
+      this.emit('keystatuseschange', {});
+    });
+  }
+  remove() {
+    return Promise.resolve();
+  }
+  update() {
+    return Promise.resolve();
   }
 }
 
@@ -82,25 +111,8 @@ describe('EMEController', function () {
         createMediaKeys: sinon.spy(() =>
           Promise.resolve({
             setServerCertificate: () => Promise.resolve(),
-            createSession: (): Partial<MediaKeySession> => ({
-              addEventListener: () => {},
-              onmessage: null,
-              onkeystatuseschange: null,
-              generateRequest() {
-                return Promise.resolve().then(() => {
-                  this.onmessage({
-                    messageType: 'license-request',
-                    message: new Uint8Array(0),
-                  });
-                  this.keyStatuses.set(new Uint8Array(0), 'usable');
-                  this.onkeystatuseschange({});
-                });
-              },
-              remove: () => Promise.resolve(),
-              update: () => Promise.resolve(),
-              keyStatuses: new Map(),
-            }),
-          })
+            createSession: () => new MediaKeySessionMock(),
+          }),
         ),
       });
     });
@@ -116,7 +128,7 @@ describe('EMEController', function () {
     });
 
     sinonFakeXMLHttpRequestStatic.onCreate = (
-      xhr: sinon.SinonFakeXMLHttpRequest
+      xhr: sinon.SinonFakeXMLHttpRequest,
     ) => {
       self.setTimeout(() => {
         (xhr as any).response = new Uint8Array();
@@ -163,25 +175,8 @@ describe('EMEController', function () {
         createMediaKeys: sinon.spy(() =>
           Promise.resolve({
             setServerCertificate: () => Promise.resolve(),
-            createSession: (): Partial<MediaKeySession> => ({
-              addEventListener: () => {},
-              onmessage: null,
-              onkeystatuseschange: null,
-              generateRequest() {
-                return Promise.resolve().then(() => {
-                  this.onmessage({
-                    messageType: 'license-request',
-                    message: new Uint8Array(0),
-                  });
-                  this.keyStatuses.set(new Uint8Array(0), 'usable');
-                  this.onkeystatuseschange({});
-                });
-              },
-              remove: () => Promise.resolve(),
-              update: () => Promise.resolve(),
-              keyStatuses: new Map(),
-            }),
-          })
+            createSession: () => new MediaKeySessionMock(),
+          }),
         ),
       });
     });
@@ -201,7 +196,7 @@ describe('EMEController', function () {
     });
 
     sinonFakeXMLHttpRequestStatic.onCreate = (
-      xhr: sinon.SinonFakeXMLHttpRequest
+      xhr: sinon.SinonFakeXMLHttpRequest,
     ) => {
       self.setTimeout(() => {
         (xhr as any).response = new Uint8Array();
@@ -260,12 +255,13 @@ describe('EMEController', function () {
             setServerCertificate: () => Promise.resolve(),
             createSession: () => ({
               addEventListener: () => {},
+              removeEventListener: () => {},
               generateRequest: () => Promise.reject(new Error('bad data')),
               remove: () => Promise.resolve(),
               update: () => Promise.resolve(),
               keyStatuses: new Map(),
             }),
-          })
+          }),
         ),
       });
     });
@@ -273,6 +269,11 @@ describe('EMEController', function () {
     setupEach({
       emeEnabled: true,
       requestMediaKeySystemAccessFunc: reqMediaKsAccessSpy,
+      drmSystems: {
+        'com.apple.fps': {
+          licenseUrl: '.',
+        },
+      },
     });
 
     const badData = {
@@ -300,18 +301,60 @@ describe('EMEController', function () {
 
     media.emit('encrypted', badData);
 
-    expect(emeController.keyIdToKeySessionPromise.f000ba00).to.be.a('Promise');
-    if (!emeController.keyIdToKeySessionPromise.f000ba00) {
-      return;
-    }
-    return emeController.keyIdToKeySessionPromise.f000ba00
-      .catch(() => {})
-      .finally(() => {
-        expect(emeController.hls.trigger).callCount(1);
-        expect(emeController.hls.trigger.args[0][1].details).to.equal(
-          ErrorDetails.KEY_SYSTEM_NO_SESSION
+    return emeController
+      .selectKeySystemFormat({
+        levelkeys: {
+          [KeySystemFormats.FAIRPLAY]: {},
+          [KeySystemFormats.WIDEVINE]: {},
+          [KeySystemFormats.PLAYREADY]: {},
+        },
+        sn: 0,
+        type: 'main',
+      } as any)
+      .then(() => {
+        expect(emeController.keyIdToKeySessionPromise).to.deep.equal(
+          {},
+          '`keyIdToKeySessionPromise` should be an empty dictionary when no key IDs are found',
         );
       });
+  });
+
+  it('should exchange keyID and status if keyStatuses forEach callback error', function () {
+    class MediaKeySessionMock2 extends MediaKeySessionMock {
+      constructor() {
+        super();
+        this.keyStatuses.set(new Uint8Array(16), 'usable');
+      }
+    }
+
+    setupEach({
+      emeEnabled: true,
+      requestMediaKeySystemAccessFunc: sinon.spy(),
+      drmSystems: {
+        'com.apple.fps': {
+          serverCertificateUrl: 'https://example.com/certificate.cer',
+        },
+      },
+    });
+
+    const keySession = new MediaKeySessionMock2();
+    const mockMediaKeySessionContext = {
+      mediaKeysSession: keySession,
+      decryptdata: {
+        encrypted: true,
+        method: 'SAMPLE-AES',
+        keyFormat: 'com.apple.streamingkeydelivery',
+        uri: 'data://key-uri',
+        keyId: new Uint8Array(16),
+        pssh: new Uint8Array(16),
+      },
+      keyStatus: 'status-pending',
+    };
+
+    emeController.onKeyStatusChange(
+      mockMediaKeySessionContext as unknown as MediaKeySessionContext,
+    );
+    expect(mockMediaKeySessionContext.keyStatus).to.be.equal('usable');
   });
 
   it('should fetch the server certificate and set it into the session', function () {
@@ -324,25 +367,8 @@ describe('EMEController', function () {
         createMediaKeys: sinon.spy(() =>
           Promise.resolve({
             setServerCertificate: mediaKeysSetServerCertificateSpy,
-            createSession: () => ({
-              addEventListener: () => {},
-              onmessage: null,
-              onkeystatuseschange: null,
-              generateRequest() {
-                return Promise.resolve().then(() => {
-                  this.onmessage({
-                    messageType: 'license-request',
-                    message: new Uint8Array(0),
-                  });
-                  this.keyStatuses.set(new Uint8Array(0), 'usable');
-                  this.onkeystatuseschange({});
-                });
-              },
-              remove: () => Promise.resolve(),
-              update: () => Promise.resolve(),
-              keyStatuses: new Map(),
-            }),
-          })
+            createSession: () => new MediaKeySessionMock(),
+          }),
         ),
       });
     });
@@ -359,7 +385,7 @@ describe('EMEController', function () {
 
     let xhrInstance;
     sinonFakeXMLHttpRequestStatic.onCreate = (
-      xhr: sinon.SinonFakeXMLHttpRequest
+      xhr: sinon.SinonFakeXMLHttpRequest,
     ) => {
       xhrInstance = xhr;
       Promise.resolve().then(() => {
@@ -386,7 +412,9 @@ describe('EMEController', function () {
     } as any);
 
     expect(
-      emeController.keyIdToKeySessionPromise['00000000000000000000000000000000']
+      emeController.keyIdToKeySessionPromise[
+        '00000000000000000000000000000000'
+      ],
     ).to.be.a('Promise');
     if (
       !emeController.keyIdToKeySessionPromise[
@@ -400,14 +428,14 @@ describe('EMEController', function () {
     ].finally(() => {
       expect(mediaKeysSetServerCertificateSpy).to.have.been.calledOnce;
       expect(mediaKeysSetServerCertificateSpy).to.have.been.calledWith(
-        xhrInstance.response
+        xhrInstance.response,
       );
     });
   });
 
   it('should fetch the server certificate and trigger update failed error', function () {
     const mediaKeysSetServerCertificateSpy = sinon.spy(() =>
-      Promise.reject(new Error('Failed'))
+      Promise.reject(new Error('Failed')),
     );
 
     const reqMediaKsAccessSpy = sinon.spy(function () {
@@ -419,12 +447,13 @@ describe('EMEController', function () {
             setServerCertificate: mediaKeysSetServerCertificateSpy,
             createSession: () => ({
               addEventListener: () => {},
+              removeEventListener: () => {},
               generateRequest: () => Promise.resolve(),
               remove: () => Promise.resolve(),
               update: () => Promise.resolve(),
               keyStatuses: new Map(),
             }),
-          })
+          }),
         ),
       });
     });
@@ -441,7 +470,7 @@ describe('EMEController', function () {
 
     let xhrInstance;
     sinonFakeXMLHttpRequestStatic.onCreate = (
-      xhr: sinon.SinonFakeXMLHttpRequest
+      xhr: sinon.SinonFakeXMLHttpRequest,
     ) => {
       xhrInstance = xhr;
       self.setTimeout(() => {
@@ -466,7 +495,9 @@ describe('EMEController', function () {
     } as any);
 
     expect(
-      emeController.keyIdToKeySessionPromise['00000000000000000000000000000000']
+      emeController.keyIdToKeySessionPromise[
+        '00000000000000000000000000000000'
+      ],
     ).to.be.a('Promise');
     if (
       !emeController.keyIdToKeySessionPromise[
@@ -482,12 +513,12 @@ describe('EMEController', function () {
       .finally(() => {
         expect(mediaKeysSetServerCertificateSpy).to.have.been.calledOnce;
         expect((mediaKeysSetServerCertificateSpy.args[0] as any)[0]).to.equal(
-          xhrInstance.response
+          xhrInstance.response,
         );
 
         expect(emeController.hls.trigger).to.have.been.calledOnce;
         expect(emeController.hls.trigger.args[0][1].details).to.equal(
-          ErrorDetails.KEY_SYSTEM_SERVER_CERTIFICATE_UPDATE_FAILED
+          ErrorDetails.KEY_SYSTEM_SERVER_CERTIFICATE_UPDATE_FAILED,
         );
       });
   });
@@ -501,12 +532,13 @@ describe('EMEController', function () {
           Promise.resolve({
             createSession: () => ({
               addEventListener: () => {},
+              removeEventListener: () => {},
               generateRequest: () => Promise.resolve(),
               remove: () => Promise.resolve(),
               update: () => Promise.resolve(),
               keyStatuses: new Map(),
             }),
-          })
+          }),
         ),
       });
     });
@@ -522,7 +554,7 @@ describe('EMEController', function () {
     });
 
     sinonFakeXMLHttpRequestStatic.onCreate = (
-      xhr: sinon.SinonFakeXMLHttpRequest
+      xhr: sinon.SinonFakeXMLHttpRequest,
     ) => {
       self.setTimeout(() => {
         xhr.status = 400;
@@ -546,7 +578,9 @@ describe('EMEController', function () {
     } as any);
 
     expect(
-      emeController.keyIdToKeySessionPromise['00000000000000000000000000000000']
+      emeController.keyIdToKeySessionPromise[
+        '00000000000000000000000000000000'
+      ],
     ).to.be.a('Promise');
     if (
       !emeController.keyIdToKeySessionPromise[
@@ -562,12 +596,12 @@ describe('EMEController', function () {
       .finally(() => {
         expect(emeController.hls.trigger).to.have.been.calledOnce;
         expect(emeController.hls.trigger.args[0][1].details).to.equal(
-          ErrorDetails.KEY_SYSTEM_SERVER_CERTIFICATE_REQUEST_FAILED
+          ErrorDetails.KEY_SYSTEM_SERVER_CERTIFICATE_REQUEST_FAILED,
         );
       });
   });
 
-  it('should close all media key sessions and remove media keys when media is detached', function () {
+  it('should remove media property  when media is detached', function () {
     const reqMediaKsAccessSpy = sinon.spy(function () {
       return Promise.resolve({
         // Media-keys mock
@@ -577,12 +611,13 @@ describe('EMEController', function () {
             setServerCertificate: () => Promise.resolve(),
             createSession: () => ({
               addEventListener: () => {},
+              removeEventListener: () => {},
               generateRequest: () => Promise.resolve(),
               remove: () => Promise.resolve(),
               update: () => Promise.resolve(),
               keyStatuses: new Map(),
             }),
-          })
+          }),
         ),
       });
     });
@@ -605,17 +640,114 @@ describe('EMEController', function () {
         },
       } as any,
     ];
-    emeController.onMediaDetached();
+    emeController.destroy();
+
+    expect(emeController.media).to.equal(null);
+  });
+
+  it('should close all media key sessions and remove media keys when call destroy', function () {
+    const reqMediaKsAccessSpy = sinon.spy(function () {
+      return Promise.resolve({
+        // Media-keys mock
+        keySystem: 'com.apple.fps',
+        createMediaKeys: sinon.spy(() =>
+          Promise.resolve({
+            setServerCertificate: () => Promise.resolve(),
+            createSession: () => ({
+              addEventListener: () => {},
+              removeEventListener: () => {},
+              generateRequest: () => Promise.resolve(),
+              remove: () => Promise.resolve(),
+              update: () => Promise.resolve(),
+              keyStatuses: new Map(),
+            }),
+          }),
+        ),
+      });
+    });
+    const keySessionRemoveSpy = sinon.spy(() => Promise.resolve());
+    const keySessionCloseSpy = sinon.spy(() => Promise.resolve());
+
+    setupEach({
+      emeEnabled: true,
+      requestMediaKeySystemAccessFunc: reqMediaKsAccessSpy,
+    });
+
+    emeController.onMediaAttached(Events.MEDIA_ATTACHED, {
+      media: media as any as HTMLMediaElement,
+    });
+    emeController.mediaKeySessions = [
+      {
+        mediaKeysSession: {
+          remove: keySessionRemoveSpy,
+          close: keySessionCloseSpy,
+        },
+      } as any,
+    ];
+    emeController.destroy();
 
     expect(EMEController.CDMCleanupPromise).to.be.a('Promise');
     if (!EMEController.CDMCleanupPromise) {
       return;
     }
     return EMEController.CDMCleanupPromise.then(() => {
-      expect(keySessionRemoveSpy).callCount(1);
       expect(keySessionCloseSpy).callCount(1);
       expect(emeController.mediaKeySessions.length).to.equal(0);
       expect(media.setMediaKeys).calledWith(null);
+    });
+  });
+
+  it('should remove all media key sessions and remove all media key sessions when call destroy with persistent-license session type', function () {
+    const reqMediaKsAccessSpy = sinon.spy(function () {
+      return Promise.resolve({
+        // Media-keys mock
+        keySystem: 'com.apple.fps',
+        createMediaKeys: sinon.spy(() =>
+          Promise.resolve({
+            setServerCertificate: () => Promise.resolve(),
+            createSession: () => ({
+              addEventListener: () => {},
+              removeEventListener: () => {},
+              generateRequest: () => Promise.resolve(),
+              remove: () => Promise.resolve(),
+              update: () => Promise.resolve(),
+              keyStatuses: new Map(),
+            }),
+          }),
+        ),
+      });
+    });
+    const keySessionRemoveSpy = sinon.spy(() => Promise.resolve());
+    const keySessionCloseSpy = sinon.spy(() => Promise.resolve());
+
+    setupEach({
+      emeEnabled: true,
+      requestMediaKeySystemAccessFunc: reqMediaKsAccessSpy,
+      drmSystemOptions: {
+        sessionType: 'persistent-license',
+      },
+    });
+
+    emeController.onMediaAttached(Events.MEDIA_ATTACHED, {
+      media: media as any as HTMLMediaElement,
+    });
+    emeController.mediaKeySessions = [
+      {
+        mediaKeysSession: {
+          remove: keySessionRemoveSpy,
+          close: keySessionCloseSpy,
+        },
+      } as any,
+    ];
+    emeController.destroy();
+
+    expect(EMEController.CDMCleanupPromise).to.be.a('Promise');
+    if (!EMEController.CDMCleanupPromise) {
+      return;
+    }
+    return EMEController.CDMCleanupPromise.then(() => {
+      expect(keySessionCloseSpy).callCount(1);
+      expect(emeController.mediaKeySessions.length).to.equal(0);
     });
   });
 });

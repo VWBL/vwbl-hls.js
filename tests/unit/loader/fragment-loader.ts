@@ -1,15 +1,15 @@
-import FragmentLoader, { LoadError } from '../../../src/loader/fragment-loader';
-import { Fragment } from '../../../src/loader/fragment';
-import { LevelDetails } from '../../../src/loader/level-details';
-import { ErrorDetails, ErrorTypes } from '../../../src/errors';
-import { LoadStats } from '../../../src/loader/load-stats';
-import { hlsDefaultConfig, mergeConfig } from '../../../src/config';
-import { PlaylistLevelType } from '../../../src/types/loader';
-import { MockXhr } from '../../mocks/loader.mock';
-
-import sinon from 'sinon';
 import chai from 'chai';
+import sinon from 'sinon';
 import sinonChai from 'sinon-chai';
+import { hlsDefaultConfig, mergeConfig } from '../../../src/config';
+import { ErrorDetails, ErrorTypes } from '../../../src/errors';
+import { Fragment } from '../../../src/loader/fragment';
+import FragmentLoader, { LoadError } from '../../../src/loader/fragment-loader';
+import { LevelDetails } from '../../../src/loader/level-details';
+import { LoadStats } from '../../../src/loader/load-stats';
+import { PlaylistLevelType } from '../../../src/types/loader';
+import { logger } from '../../../src/utils/logger';
+import { MockXhr } from '../../mocks/loader.mock';
 
 chai.use(sinonChai);
 const expect = chai.expect;
@@ -25,7 +25,7 @@ describe('FragmentLoader tests', function () {
 
   beforeEach(function () {
     fragmentLoader = new FragmentLoader(
-      mergeConfig(hlsDefaultConfig, { loader: MockXhr })
+      mergeConfig(hlsDefaultConfig, { loader: MockXhr }, logger),
     );
     frag = new Fragment(PlaylistLevelType.MAIN, '');
     frag.url = 'foo';
@@ -76,13 +76,13 @@ describe('FragmentLoader tests', function () {
         stats,
         context,
         response.data,
-        networkDetails
+        networkDetails,
       );
       fragmentLoaderPrivates.loader.callbacks.onSuccess(
         response,
         stats,
         context,
-        networkDetails
+        networkDetails,
       );
     });
   });
@@ -118,7 +118,7 @@ describe('FragmentLoader tests', function () {
         response,
         context,
         networkDetails,
-        stats
+        stats,
       );
     }).then((error: LoadError) => {
       expect(error).to.be.instanceOf(LoadError);
@@ -133,7 +133,7 @@ describe('FragmentLoader tests', function () {
           networkDetails,
           stats,
         },
-        JSON.stringify(error.data, null, 2)
+        JSON.stringify(error.data, null, 2),
       );
       expect(fragmentLoaderPrivates.loader).to.not.exist;
       expect(frag.loader).to.not.exist;
