@@ -1,6 +1,6 @@
 {
   "name": "vwbl-hls.js",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "license": "Apache-2.0",
   "description": "JavaScript HLS client using MediaSourceExtension",
   "homepage": "https://github.com/VWBL/vwbl-hls.js",
