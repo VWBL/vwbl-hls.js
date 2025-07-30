@@ -1,40 +1,39 @@
-import { EventEmitter } from 'eventemitter3';
 import {
+  WorkerContext,
   hasUMDWorker,
   injectWorker,
   loadWorker,
-  removeWorkerFromStore as removeWorkerClient,
 } from './inject-worker';
+import { Events } from '../events';
 import Transmuxer, {
-  isPromise,
   TransmuxConfig,
   TransmuxState,
+  isPromise,
 } from '../demux/transmuxer';
-import { ErrorDetails, ErrorTypes } from '../errors';
-import { Events } from '../events';
-import { PlaylistLevelType } from '../types/loader';
-import { getM2TSSupportedAudioTypes } from '../utils/codecs';
-import { stringify } from '../utils/safe-json-stringify';
-import type { WorkerContext } from './inject-worker';
-import type { HlsEventEmitter, HlsListeners } from '../events';
-import type Hls from '../hls';
-import type { MediaFragment, Part } from '../loader/fragment';
-import type { ErrorData, FragDecryptedData } from '../types/events';
+import { logger } from '../utils/logger';
+import { ErrorTypes, ErrorDetails } from '../errors';
+import { getMediaSource } from '../utils/mediasource-helper';
+import { EventEmitter } from 'eventemitter3';
+import { Fragment, Part } from '../loader/fragment';
 import type { ChunkMetadata, TransmuxerResult } from '../types/transmuxer';
+import type Hls from '../hls';
+import type { HlsEventEmitter } from '../events';
+import type { PlaylistLevelType } from '../types/loader';
+import type { TypeSupported } from './tsdemuxer';
 import type { RationalTimestamp } from '../utils/timescale-conversion';
 
-let transmuxerInstanceCount: number = 0;
+const MediaSource = getMediaSource() || { isTypeSupported: () => false };
 
 export default class TransmuxerInterface {
   public error: Error | null = null;
   private hls: Hls;
   private id: PlaylistLevelType;
-  private instanceNo: number = transmuxerInstanceCount++;
   private observer: HlsEventEmitter;
-  private frag: MediaFragment | null = null;
+  private frag: Fragment | null = null;
   private part: Part | null = null;
   private useWorker: boolean;
   private workerContext: WorkerContext | null = null;
+  private onwmsg?: Function;
   private transmuxer: Transmuxer | null = null;
   private onTransmuxComplete: (transmuxResult: TransmuxerResult) => void;
   private onFlush: (chunkMeta: ChunkMetadata) => void;
@@ -43,7 +42,7 @@ export default class TransmuxerInterface {
     hls: Hls,
     id: PlaylistLevelType,
     onTransmuxComplete: (transmuxResult: TransmuxerResult) => void,
-    onFlush: (chunkMeta: ChunkMetadata) => void,
+    onFlush: (chunkMeta: ChunkMetadata) => void
   ) {
     const config = hls.config;
     this.hls = hls;
@@ -52,16 +51,11 @@ export default class TransmuxerInterface {
     this.onTransmuxComplete = onTransmuxComplete;
     this.onFlush = onFlush;
 
-    const forwardMessage = (
-      ev: Events.ERROR | Events.FRAG_DECRYPTED,
-      data: ErrorData | FragDecryptedData,
-    ) => {
+    const forwardMessage = (ev, data) => {
       data = data || {};
-      data.frag = this.frag || undefined;
+      data.frag = this.frag;
+      data.id = this.id;
       if (ev === Events.ERROR) {
-        data = data as ErrorData;
-        data.parent = this.id;
-        data.part = this.part;
         this.error = data.error;
       }
       this.hls.trigger(ev, data);
@@ -72,12 +66,15 @@ export default class TransmuxerInterface {
     this.observer.on(Events.FRAG_DECRYPTED, forwardMessage);
     this.observer.on(Events.ERROR, forwardMessage);
 
-    const m2tsTypeSupported = getM2TSSupportedAudioTypes(
-      config.preferManagedMediaSource,
-    );
-
+    const typeSupported: TypeSupported = {
+      mp4: MediaSource.isTypeSupported('video/mp4'),
+      mpeg: MediaSource.isTypeSupported('audio/mpeg'),
+      mp3: MediaSource.isTypeSupported('audio/mp4; codecs="mp3"'),
+    };
+    // navigator.vendor is not always available in Web Worker
+    // refer to https://developer.mozilla.org/en-US/docs/Web/API/WorkerGlobalScope/navigator
+    const vendor = navigator.vendor;
     if (this.useWorker && typeof Worker !== 'undefined') {
-      const logger = this.hls.logger;
       const canCreateWorker = config.workerPath || hasUMDWorker();
       if (canCreateWorker) {
         try {
@@ -88,30 +85,43 @@ export default class TransmuxerInterface {
             logger.log(`injecting Web Worker for "${id}"`);
             this.workerContext = injectWorker();
           }
+          this.onwmsg = (ev: any) => this.onWorkerMessage(ev);
           const { worker } = this.workerContext;
-          worker.addEventListener('message', this.onWorkerMessage);
-          worker.addEventListener('error', this.onWorkerError);
+          worker.addEventListener('message', this.onwmsg as any);
+          worker.onerror = (event) => {
+            const error = new Error(
+              `${event.message}  (${event.filename}:${event.lineno})`
+            );
+            config.enableWorker = false;
+            logger.warn(`Error in "${id}" Web Worker, fallback to inline`);
+            this.hls.trigger(Events.ERROR, {
+              type: ErrorTypes.OTHER_ERROR,
+              details: ErrorDetails.INTERNAL_EXCEPTION,
+              fatal: false,
+              event: 'demuxerWorker',
+              error,
+            });
+          };
           worker.postMessage({
-            instanceNo: this.instanceNo,
             cmd: 'init',
-            typeSupported: m2tsTypeSupported,
-            id,
-            config: stringify(config),
+            typeSupported: typeSupported,
+            vendor: vendor,
+            id: id,
+            config: JSON.stringify(config),
           });
         } catch (err) {
           logger.warn(
             `Error setting up "${id}" Web Worker, fallback to inline`,
-            err,
+            err
           );
-          this.terminateWorker();
+          this.resetWorker();
           this.error = null;
           this.transmuxer = new Transmuxer(
             this.observer,
-            m2tsTypeSupported,
+            typeSupported,
             config,
-            '',
-            id,
-            hls.logger,
+            vendor,
+            id
           );
         }
         return;
@@ -120,50 +130,31 @@ export default class TransmuxerInterface {
 
     this.transmuxer = new Transmuxer(
       this.observer,
-      m2tsTypeSupported,
+      typeSupported,
       config,
-      '',
-      id,
-      hls.logger,
+      vendor,
+      id
     );
   }
 
-  reset() {
-    this.frag = null;
-    this.part = null;
+  resetWorker(): void {
     if (this.workerContext) {
-      const instanceNo = this.instanceNo;
-      this.instanceNo = transmuxerInstanceCount++;
-      const config = this.hls.config;
-      const m2tsTypeSupported = getM2TSSupportedAudioTypes(
-        config.preferManagedMediaSource,
-      );
-      this.workerContext.worker.postMessage({
-        instanceNo: this.instanceNo,
-        cmd: 'reset',
-        resetNo: instanceNo,
-        typeSupported: m2tsTypeSupported,
-        id: this.id,
-        config: stringify(config),
-      });
-    }
-  }
-
-  private terminateWorker() {
-    if (this.workerContext) {
-      const { worker } = this.workerContext;
+      const { worker, objectURL } = this.workerContext;
+      if (objectURL) {
+        // revoke the Object URL that was used to create transmuxer worker, so as not to leak it
+        self.URL.revokeObjectURL(objectURL);
+      }
+      worker.removeEventListener('message', this.onwmsg as any);
+      worker.onerror = null;
+      worker.terminate();
       this.workerContext = null;
-      worker.removeEventListener('message', this.onWorkerMessage);
-      worker.removeEventListener('error', this.onWorkerError);
-      removeWorkerClient(this.hls.config.workerPath);
     }
   }
 
-  destroy() {
+  destroy(): void {
     if (this.workerContext) {
-      this.terminateWorker();
-      // @ts-ignore
-      this.onWorkerMessage = this.onWorkerError = null;
+      this.resetWorker();
+      this.onwmsg = undefined;
     } else {
       const transmuxer = this.transmuxer;
       if (transmuxer) {
@@ -176,7 +167,6 @@ export default class TransmuxerInterface {
       observer.removeAllListeners();
     }
     this.frag = null;
-    this.part = null;
     // @ts-ignore
     this.observer = null;
     // @ts-ignore
@@ -188,15 +178,15 @@ export default class TransmuxerInterface {
     initSegmentData: Uint8Array | undefined,
     audioCodec: string | undefined,
     videoCodec: string | undefined,
-    frag: MediaFragment,
+    frag: Fragment,
     part: Part | null,
     duration: number,
     accurateTimeOffset: boolean,
     chunkMeta: ChunkMetadata,
-    defaultInitPTS?: RationalTimestamp,
-  ) {
+    defaultInitPTS?: RationalTimestamp
+  ): void {
     chunkMeta.transmuxing.start = self.performance.now();
-    const { instanceNo, transmuxer } = this;
+    const { transmuxer } = this;
     const timeOffset = part ? part.start : frag.start;
     // TODO: push "clear-lead" decrypt data for unencrypted fragments in streams with encrypted ones
     const decryptdata = frag.decryptdata;
@@ -204,7 +194,7 @@ export default class TransmuxerInterface {
 
     const discontinuity = !(lastFrag && frag.cc === lastFrag.cc);
     const trackSwitch = !(lastFrag && chunkMeta.level === lastFrag.level);
-    const snDiff = lastFrag ? chunkMeta.sn - lastFrag.sn : -1;
+    const snDiff = lastFrag ? chunkMeta.sn - (lastFrag.sn as number) : -1;
     const partDiff = this.part ? chunkMeta.part - this.part.index : -1;
     const progressive =
       snDiff === 0 &&
@@ -231,13 +221,10 @@ export default class TransmuxerInterface {
       accurateTimeOffset,
       trackSwitch,
       timeOffset,
-      initSegmentChange,
+      initSegmentChange
     );
     if (!contiguous || discontinuity || initSegmentChange) {
-      this.hls.logger
-        .log(`[transmuxer-interface]: Starting new transmux session for ${frag.type} sn: ${chunkMeta.sn}${
-        chunkMeta.part > -1 ? ' part: ' + chunkMeta.part : ''
-      } ${this.id === PlaylistLevelType.MAIN ? 'level' : 'track'}: ${chunkMeta.level} id: ${chunkMeta.id}
+      logger.log(`[transmuxer-interface, ${frag.type}]: Starting new transmux session for sn: ${chunkMeta.sn} p: ${chunkMeta.part} level: ${chunkMeta.level} id: ${chunkMeta.id}
         discontinuity: ${discontinuity}
         trackSwitch: ${trackSwitch}
         contiguous: ${contiguous}
@@ -249,7 +236,7 @@ export default class TransmuxerInterface {
         videoCodec,
         initSegmentData,
         duration,
-        defaultInitPTS,
+        defaultInitPTS
       );
       this.configureTransmuxer(config);
     }
@@ -262,23 +249,23 @@ export default class TransmuxerInterface {
       // post fragment payload as transferable objects for ArrayBuffer (no copy)
       this.workerContext.worker.postMessage(
         {
-          instanceNo,
           cmd: 'demux',
           data,
           decryptdata,
           chunkMeta,
           state,
         },
-        data instanceof ArrayBuffer ? [data] : [],
+        data instanceof ArrayBuffer ? [data] : []
       );
     } else if (transmuxer) {
       const transmuxResult = transmuxer.push(
         data,
         decryptdata,
         chunkMeta,
-        state,
+        state
       );
       if (isPromise(transmuxResult)) {
+        transmuxer.async = true;
         transmuxResult
           .then((data) => {
             this.handleTransmuxComplete(data);
@@ -287,10 +274,11 @@ export default class TransmuxerInterface {
             this.transmuxerError(
               error,
               chunkMeta,
-              'transmuxer-interface push error',
+              'transmuxer-interface push error'
             );
           });
       } else {
+        transmuxer.async = false;
         this.handleTransmuxComplete(transmuxResult as TransmuxerResult);
       }
     }
@@ -298,17 +286,20 @@ export default class TransmuxerInterface {
 
   flush(chunkMeta: ChunkMetadata) {
     chunkMeta.transmuxing.start = self.performance.now();
-    const { instanceNo, transmuxer } = this;
+    const { transmuxer } = this;
     if (this.workerContext) {
       1;
       this.workerContext.worker.postMessage({
-        instanceNo,
         cmd: 'flush',
         chunkMeta,
       });
     } else if (transmuxer) {
-      const transmuxResult = transmuxer.flush(chunkMeta);
-      if (isPromise(transmuxResult)) {
+      let transmuxResult = transmuxer.flush(chunkMeta);
+      const asyncFlush = isPromise(transmuxResult);
+      if (asyncFlush || transmuxer.async) {
+        if (!isPromise(transmuxResult)) {
+          transmuxResult = Promise.resolve(transmuxResult);
+        }
         transmuxResult
           .then((data) => {
             this.handleFlushResult(data, chunkMeta);
@@ -317,11 +308,14 @@ export default class TransmuxerInterface {
             this.transmuxerError(
               error,
               chunkMeta,
-              'transmuxer-interface flush error',
+              'transmuxer-interface flush error'
             );
           });
       } else {
-        this.handleFlushResult(transmuxResult, chunkMeta);
+        this.handleFlushResult(
+          transmuxResult as Array<TransmuxerResult>,
+          chunkMeta
+        );
       }
     }
   }
@@ -329,7 +323,7 @@ export default class TransmuxerInterface {
   private transmuxerError(
     error: Error,
     chunkMeta: ChunkMetadata,
-    reason: string,
+    reason: string
   ) {
     if (!this.hls) {
       return;
@@ -339,8 +333,6 @@ export default class TransmuxerInterface {
       type: ErrorTypes.MEDIA_ERROR,
       details: ErrorDetails.FRAG_PARSING_ERROR,
       chunkMeta,
-      frag: this.frag || undefined,
-      part: this.part || undefined,
       fatal: false,
       error,
       err: error,
@@ -350,7 +342,7 @@ export default class TransmuxerInterface {
 
   private handleFlushResult(
     results: Array<TransmuxerResult>,
-    chunkMeta: ChunkMetadata,
+    chunkMeta: ChunkMetadata
   ) {
     results.forEach((result) => {
       this.handleTransmuxComplete(result);
@@ -358,18 +350,9 @@ export default class TransmuxerInterface {
     this.onFlush(chunkMeta);
   }
 
-  private onWorkerMessage = (
-    event: MessageEvent<{
-      event: string;
-      data?: any;
-      instanceNo?: number;
-    } | null>,
-  ) => {
-    const data = event.data;
+  private onWorkerMessage(ev: any): void {
+    const data = ev.data;
     const hls = this.hls;
-    if (!hls || !data?.event || data.instanceNo !== this.instanceNo) {
-      return;
-    }
     switch (data.event) {
       case 'init': {
         const objectURL = this.workerContext?.objectURL;
@@ -391,49 +374,26 @@ export default class TransmuxerInterface {
       }
 
       // pass logs from the worker thread to the main logger
-      case 'workerLog': {
-        if (hls.logger[data.data.logType]) {
-          hls.logger[data.data.logType](data.data.message);
+      case 'workerLog':
+        if (logger[data.data.logType]) {
+          logger[data.data.logType](data.data.message);
         }
         break;
-      }
 
       default: {
         data.data = data.data || {};
         data.data.frag = this.frag;
-        data.data.part = this.part;
         data.data.id = this.id;
-        hls.trigger(data.event as keyof HlsListeners, data.data);
+        hls.trigger(data.event, data.data);
         break;
       }
     }
-  };
-
-  private onWorkerError = (event) => {
-    if (!this.hls) {
-      return;
-    }
-    const error = new Error(
-      `${event.message}  (${event.filename}:${event.lineno})`,
-    );
-    this.hls.config.enableWorker = false;
-    this.hls.logger.warn(
-      `Error in "${this.id}" Web Worker, fallback to inline`,
-    );
-    this.hls.trigger(Events.ERROR, {
-      type: ErrorTypes.OTHER_ERROR,
-      details: ErrorDetails.INTERNAL_EXCEPTION,
-      fatal: false,
-      event: 'demuxerWorker',
-      error,
-    });
-  };
+  }
 
   private configureTransmuxer(config: TransmuxConfig) {
-    const { instanceNo, transmuxer } = this;
+    const { transmuxer } = this;
     if (this.workerContext) {
       this.workerContext.worker.postMessage({
-        instanceNo,
         cmd: 'configure',
         config,
       });

@@ -1,104 +1,96 @@
-import { CmcdHeaderField } from '@svta/common-media-library/cmcd/CmcdHeaderField';
-import chai from 'chai';
 import CMCDController from '../../../src/controller/cmcd-controller';
-import Hls from '../../../src/hls';
-import M3U8Parser from '../../../src/loader/m3u8-parser';
-import { PlaylistLevelType } from '../../../src/types/loader';
+import HlsMock from '../../mocks/hls.mock';
 import type { CMCDControllerConfig } from '../../../src/config';
-import type { Fragment, Part } from '../../../src/loader/fragment';
+
+import chai from 'chai';
 
 const expect = chai.expect;
 
 let cmcdController;
 
-const url = 'https://dummy.url.com/playlist.m3u8';
-const playlist = `#EXTM3U
-#EXT-X-VERSION:7
-#EXT-X-TARGETDURATION:2
-#EXT-X-SERVER-CONTROL:CAN-BLOCK-RELOAD=YES,PART-HOLD-BACK=2.171
-#EXT-X-PART-INF:PART-TARGET=1.034
-#EXT-X-MAP:URI="https://dummy.url.com/18446744073709551615.m4s"
-#EXT-X-MEDIA-SEQUENCE:10902
-#EXT-X-PROGRAM-DATE-TIME:2024-05-02T18:03:57.020+00:00
-#EXTINF:2,
-https://dummy.url.com/10902.m4s
-#EXT-X-PROGRAM-DATE-TIME:2024-05-02T18:03:59.020+00:00
-#EXTINF:2,
-https://dummy.url.com/10903.m4s
-#EXT-X-PROGRAM-DATE-TIME:2024-05-02T18:04:01.020+00:00
-#EXT-X-PART:DURATION=1,URI="https://dummy.url.com/10904.0.m4s"
-#EXT-X-PART:DURATION=1,URI="https://dummy.url.com/10904.1.m4s"
-#EXTINF:2,
-https://dummy.url.com/10904.m4s
-#EXT-X-PROGRAM-DATE-TIME:2024-05-02T18:04:03.020+00:00
-#EXT-X-PART:DURATION=1,URI="https://dummy.url.com/10905.0.m4s",INDEPENDENT=YES
-#EXT-X-PART:DURATION=1,URI="https://dummy.url.com/10905.1.m4s"
-#EXTINF:2,
-https://dummy.url.com/10905.m4s
-#EXT-X-PROGRAM-DATE-TIME:2024-05-02T18:04:05.020+00:00
-#EXT-X-PART:DURATION=1,URI="https://dummy.url.com/10906.0.m4s",INDEPENDENT=YES
-#EXT-X-PART:DURATION=1,URI="https://dummy.url.com/10906.1.m4s"
-#EXTINF:2,
-https://dummy.url.com/10906.m4s`;
-
 const uuidRegex =
-  /[a-f\d]{8}-[a-f\d]{4}-4[a-f\d]{3}-[89ab][a-f\d]{3}-[a-f\d]{12}/;
+  '[A-F\\d]{8}-[A-F\\d]{4}-4[A-F\\d]{3}-[89AB][A-F\\d]{3}-[A-F\\d]{12}';
 
-const setupEach = (cmcd?: CMCDControllerConfig) => {
-  const details = M3U8Parser.parseLevelPlaylist(
-    playlist,
-    url,
-    0,
-    PlaylistLevelType.MAIN,
-    0,
-    null,
-  );
-
-  const level = {
-    bitrate: 1000,
-    details,
-  };
-
-  const hls = new Hls({ cmcd }) as any;
-  hls.networkControllers.forEach((component) => component.destroy());
-  hls.networkControllers.length = 0;
-  hls.coreComponents.forEach((component) => component.destroy());
-  hls.coreComponents.length = 0;
-  hls.levelController = {
-    levels: [level],
-    level: 0,
-  };
-  // hls.audioTracks = [];
-
-  cmcdController = new CMCDController(hls);
-
-  return details;
+const data = {
+  sid: 'c936730c-031e-4a73-976f-92bc34039c60',
+  cid: 'xyz',
+  su: false,
+  nor: '../testing/3.m4v',
+  nrr: '0-99',
+  d: 6066.66,
+  mtp: 10049,
+  bs: true,
+  br: 52317,
+  v: 1,
+  pr: 1,
+  'com.test-hello': 'world',
+  'com.test-testing': 1234,
+  'com.test-exists': true,
+  'com.test-notExists': false,
 };
 
-const base = {
-  url,
-  headers: undefined,
-};
-
-const applyPlaylistData = (data = {}) => {
-  const context = Object.assign(data, base);
-  cmcdController.applyPlaylistData(context);
-  return context;
-};
-
-const applyFragmentData = (frag: Fragment, part?: Part | undefined) => {
-  const context = Object.assign({ url: frag.url, frag, part });
-  cmcdController.applyFragmentData(context);
-  return context;
-};
-
-const expectField = (result, expected) => {
-  const regex = new RegExp(expected);
-  expect(regex.test(result)).to.equal(true);
+const setupEach = function (cmcd?: CMCDControllerConfig) {
+  cmcdController = new CMCDController(new HlsMock({ cmcd }) as any);
 };
 
 describe('CMCDController', function () {
+  describe('Query serialization', function () {
+    it('produces correctly serialized data', function () {
+      const query = CMCDController.toQuery(data);
+      const result =
+        'CMCD=br%3D52317%2Cbs%2Ccid%3D%22xyz%22%2C' +
+        'com.test-exists%2Ccom.test-hello%3D%22world%22%2C' +
+        'com.test-testing%3D1234%2C' +
+        'd%3D6067%2Cmtp%3D10000%2C' +
+        'nor%3D%22..%252Ftesting%252F3.m4v%22%2C' +
+        'nrr%3D%220-99%22%2C' +
+        'sid%3D%22c936730c-031e-4a73-976f-92bc34039c60%22';
+      expect(query).to.equal(result);
+    });
+
+    it('appends with ?', function () {
+      const result = CMCDController.appendQueryToUri(
+        'http://test.com',
+        'CMCD=d%3D6067'
+      );
+      expect(result).to.equal('http://test.com?CMCD=d%3D6067');
+    });
+
+    it('appends with &', function () {
+      const result = CMCDController.appendQueryToUri(
+        'http://test.com?testing=123',
+        'CMCD=d%3D6067'
+      );
+      expect(result).to.equal('http://test.com?testing=123&CMCD=d%3D6067');
+    });
+  });
+
+  describe('Header serialization', function () {
+    it('produces all header shards', function () {
+      const header = CMCDController.toHeaders(data);
+      expect(header).to.deep.equal({
+        'CMCD-Object': 'br=52317,d=6067',
+        'CMCD-Request':
+          'com.test-exists,com.test-hello="world",' +
+          'com.test-testing=1234,mtp=10000,' +
+          'nor="..%2Ftesting%2F3.m4v",nrr="0-99"',
+        'CMCD-Session': 'cid="xyz",sid="c936730c-031e-4a73-976f-92bc34039c60"',
+        'CMCD-Status': 'bs',
+      });
+    });
+
+    it('ignores empty shards', function () {
+      expect(CMCDController.toHeaders({ br: 200 })).to.deep.equal({
+        'CMCD-Object': 'br=200',
+      });
+    });
+  });
+
   describe('cmcdController instance', function () {
+    const context = {
+      url: 'https://test.com/test.mpd',
+    };
+
     describe('configuration', function () {
       it('does not modify requests when disabled', function () {
         setupEach();
@@ -108,73 +100,14 @@ describe('CMCDController', function () {
         expect(config.fLoader).to.equal(undefined);
       });
 
-      it('uses the session id if provided', function () {
-        const sessionId = 'SESSION_ID';
-        setupEach({ sessionId });
-
-        const { url } = applyPlaylistData();
-        expectField(url, `sid%3D%22${sessionId}%22`);
-      });
-
-      it('uses the Hls instance session id if not provided', function () {
+      it('generates a session id if not provided', function () {
         setupEach({});
 
-        const sessionId = cmcdController.hls.sessionId;
-        const { url } = applyPlaylistData();
-        expectField(url, `sid%3D%22${sessionId}%22`);
-        expect(sessionId).to.match(uuidRegex);
-      });
+        const c = Object.assign({ frag: {} }, context);
 
-      it('uses the content id if provided', function () {
-        const contentId = 'CONTENT_ID';
-        setupEach({ contentId });
-
-        const { url } = applyPlaylistData();
-        expectField(url, `cid%3D%22${contentId}%22`);
-      });
-
-      it('uses headers if configured', function () {
-        const contentId = 'CONTENT_ID';
-        setupEach({ contentId, useHeaders: true });
-
-        const { url, headers = {} } = applyPlaylistData();
-
-        expect(url).to.equal(base.url);
-        expectField(headers[CmcdHeaderField.SESSION], `cid="${contentId}"`);
-      });
-
-      it('uses includeKeys if configured', function () {
-        const contentId = 'CONTENT_ID';
-        setupEach({ includeKeys: ['cid'], contentId });
-
-        const { url } = applyPlaylistData();
-
-        expect(url).to.equal(`${base.url}?CMCD=cid%3D%22${contentId}%22`);
-      });
-
-      it('uses fragment data', function () {
-        const details = setupEach({});
-
-        const { url } = applyFragmentData(details.fragments[0]);
-
-        expectField(url, `nor%3D%2210903.m4s%22`);
-        expectField(url, `br%3D1`);
-        expectField(url, `d%3D2000`);
-        expectField(url, `ot%3Dav`);
-      });
-
-      it('uses part data when available', function () {
-        const details = setupEach({});
-
-        const { url } = applyFragmentData(
-          details.fragments[2],
-          details.partList?.[0],
-        );
-
-        expectField(url, `nor%3D%2210904.1.m4s%22`);
-        expectField(url, `br%3D1`);
-        expectField(url, `d%3D1000`);
-        expectField(url, `ot%3Dav`);
+        cmcdController.applyPlaylistData(c);
+        const regex = new RegExp(`sid%3D%22${uuidRegex}%22`, 'i');
+        expect(regex.test(c.url)).to.equal(true);
       });
     });
   });

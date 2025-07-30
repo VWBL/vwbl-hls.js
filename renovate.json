@@ -3,9 +3,8 @@
   "labels": ["dependencies", "skip-change-log"],
   "prHourlyLimit": 0,
   "prConcurrentLimit": 0,
-  "prCreation": "immediate",
-  "minimumReleaseAge": "7 days",
-  "internalChecksFilter": "strict",
+  "prCreation": "not-pending",
+  "stabilityDays": 7,
   "vulnerabilityAlerts": {
     "addLabels": ["security"]
   },

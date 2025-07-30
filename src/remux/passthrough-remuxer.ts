@@ -2,38 +2,36 @@ import {
   flushTextTrackMetadataCueSamples,
   flushTextTrackUserdataCueSamples,
 } from './mp4-remuxer';
-import { ElementaryStreamTypes } from '../loader/fragment';
-import { getCodecCompatibleName } from '../utils/codecs';
-import { type ILogger, logger } from '../utils/logger';
-import { patchEncyptionData } from '../utils/mp4-tools';
+import {
+  InitData,
+  InitDataTrack,
+  patchEncyptionData,
+} from '../utils/mp4-tools';
 import {
   getDuration,
   getStartDTS,
   offsetStartDTS,
   parseInitSegment,
 } from '../utils/mp4-tools';
-import type { HlsConfig } from '../config';
-import type { HlsEventEmitter } from '../events';
-import type { DecryptData } from '../loader/level-key';
-import type {
-  DemuxedAudioTrack,
-  DemuxedMetadataTrack,
-  DemuxedUserdataTrack,
-  PassthroughTrack,
-} from '../types/demuxer';
+import { ElementaryStreamTypes } from '../loader/fragment';
+import { logger } from '../utils/logger';
+import type { TrackSet } from '../types/track';
 import type {
   InitSegmentData,
   RemuxedTrack,
   Remuxer,
   RemuxerResult,
 } from '../types/remuxer';
-import type { TrackSet } from '../types/track';
-import type { TypeSupported } from '../utils/codecs';
-import type { InitData, InitDataTrack } from '../utils/mp4-tools';
+import type {
+  DemuxedAudioTrack,
+  DemuxedMetadataTrack,
+  DemuxedUserdataTrack,
+  PassthroughTrack,
+} from '../types/demuxer';
+import type { DecryptData } from '../loader/level-key';
 import type { RationalTimestamp } from '../utils/timescale-conversion';
 
 class PassThroughRemuxer implements Remuxer {
-  private readonly logger: ILogger;
   private emitInitSegment: boolean = false;
   private audioCodec?: string;
   private videoCodec?: string;
@@ -41,15 +39,6 @@ class PassThroughRemuxer implements Remuxer {
   private initPTS: RationalTimestamp | null = null;
   private initTracks?: TrackSet;
   private lastEndTime: number | null = null;
-
-  constructor(
-    observer: HlsEventEmitter,
-    config: HlsConfig,
-    typeSupported: TypeSupported,
-    logger: ILogger,
-  ) {
-    this.logger = logger;
-  }
 
   public destroy() {}
 
@@ -66,7 +55,7 @@ class PassThroughRemuxer implements Remuxer {
     initSegment: Uint8Array | undefined,
     audioCodec: string | undefined,
     videoCodec: string | undefined,
-    decryptdata: DecryptData | null,
+    decryptdata: DecryptData | null
   ) {
     this.audioCodec = audioCodec;
     this.videoCodec = videoCodec;
@@ -83,18 +72,18 @@ class PassThroughRemuxer implements Remuxer {
     }
     const initData = (this.initData = parseInitSegment(initSegment));
 
-    // Get codec from initSegment
-    if (initData.audio) {
+    // Get codec from initSegment or fallback to default
+    if (!audioCodec) {
       audioCodec = getParsedTrackCodec(
         initData.audio,
-        ElementaryStreamTypes.AUDIO,
+        ElementaryStreamTypes.AUDIO
       );
     }
 
-    if (initData.video) {
+    if (!videoCodec) {
       videoCodec = getParsedTrackCodec(
         initData.video,
-        ElementaryStreamTypes.VIDEO,
+        ElementaryStreamTypes.VIDEO
       );
     }
 
@@ -103,7 +92,6 @@ class PassThroughRemuxer implements Remuxer {
       tracks.audiovideo = {
         container: 'video/mp4',
         codec: audioCodec + ',' + videoCodec,
-        supplemental: initData.video.supplemental,
         initSegment,
         id: 'main',
       };
@@ -118,13 +106,12 @@ class PassThroughRemuxer implements Remuxer {
       tracks.video = {
         container: 'video/mp4',
         codec: videoCodec,
-        supplemental: initData.video.supplemental,
         initSegment,
         id: 'main',
       };
     } else {
-      this.logger.warn(
-        '[passthrough-remuxer.ts]: initSegment does not contain moov or trak boxes.',
+      logger.warn(
+        '[passthrough-remuxer.ts]: initSegment does not contain moov or trak boxes.'
       );
     }
     this.initTracks = tracks;
@@ -136,7 +123,7 @@ class PassThroughRemuxer implements Remuxer {
     id3Track: DemuxedMetadataTrack,
     textTrack: DemuxedUserdataTrack,
     timeOffset: number,
-    accurateTimeOffset: boolean,
+    accurateTimeOffset: boolean
   ): RemuxerResult {
     let { initPTS, lastEndTime } = this;
     const result: RemuxerResult = {
@@ -172,9 +159,7 @@ class PassThroughRemuxer implements Remuxer {
     }
     if (!initData?.length) {
       // We can't remux if the initSegment could not be generated
-      this.logger.warn(
-        '[passthrough-remuxer.ts]: Failed to generate initSegment.',
-      );
+      logger.warn('[passthrough-remuxer.ts]: Failed to generate initSegment.');
       return result;
     }
     if (this.emitInitSegment) {
@@ -182,26 +167,20 @@ class PassThroughRemuxer implements Remuxer {
       this.emitInitSegment = false;
     }
 
-    const duration = getDuration(data, initData);
     const startDTS = getStartDTS(initData, data);
     const decodeTime = startDTS === null ? timeOffset : startDTS;
     if (
-      (accurateTimeOffset || !initPTS) &&
-      (isInvalidInitPts(initPTS, decodeTime, timeOffset, duration) ||
-        initSegment.timescale !== initPTS.timescale)
+      isInvalidInitPts(initPTS, decodeTime, timeOffset) ||
+      (initSegment.timescale !== initPTS.timescale && accurateTimeOffset)
     ) {
       initSegment.initPTS = decodeTime - timeOffset;
-      if (initPTS && initPTS.timescale === 1) {
-        this.logger.warn(
-          `Adjusting initPTS @${timeOffset} from ${initPTS.baseTime / initPTS.timescale} to ${initSegment.initPTS}`,
-        );
-      }
       this.initPTS = initPTS = {
         baseTime: initSegment.initPTS,
         timescale: 1,
       };
     }
 
+    const duration = getDuration(data, initData);
     const startTime = audioTrack
       ? decodeTime - initPTS.baseTime / initPTS.timescale
       : (lastEndTime as number);
@@ -211,7 +190,7 @@ class PassThroughRemuxer implements Remuxer {
     if (duration > 0) {
       this.lastEndTime = endTime;
     } else {
-      this.logger.warn('Duration parsed from mp4 should be greater than zero');
+      logger.warn('Duration parsed from mp4 should be greater than zero');
       this.resetNextTimestamp();
     }
 
@@ -247,14 +226,14 @@ class PassThroughRemuxer implements Remuxer {
       id3Track,
       timeOffset,
       initPTS,
-      initPTS,
+      initPTS
     );
 
     if (textTrack.samples.length) {
       result.text = flushTextTrackUserdataCueSamples(
         textTrack,
         timeOffset,
-        initPTS,
+        initPTS
       );
     }
 
@@ -265,46 +244,36 @@ class PassThroughRemuxer implements Remuxer {
 function isInvalidInitPts(
   initPTS: RationalTimestamp | null,
   startDTS: number,
-  timeOffset: number,
-  duration: number,
+  timeOffset: number
 ): initPTS is null {
   if (initPTS === null) {
     return true;
   }
-  // InitPTS is invalid when distance from program would be more than segment duration or a minimum of one second
-  const minDuration = Math.max(duration, 1);
+  // InitPTS is invalid when it would cause start time to be negative, or distance from time offset to be more than 1 second
   const startTime = startDTS - initPTS.baseTime / initPTS.timescale;
-  return Math.abs(startTime - timeOffset) > minDuration;
+  return startTime < 0 && Math.abs(startTime - timeOffset) > 1;
 }
 
 function getParsedTrackCodec(
-  track: InitDataTrack,
-  type: ElementaryStreamTypes.AUDIO | ElementaryStreamTypes.VIDEO,
+  track: InitDataTrack | undefined,
+  type: ElementaryStreamTypes.AUDIO | ElementaryStreamTypes.VIDEO
 ): string {
   const parsedCodec = track?.codec;
   if (parsedCodec && parsedCodec.length > 4) {
     return parsedCodec;
   }
-  if (type === ElementaryStreamTypes.AUDIO) {
-    if (
-      parsedCodec === 'ec-3' ||
-      parsedCodec === 'ac-3' ||
-      parsedCodec === 'alac'
-    ) {
-      return parsedCodec;
-    }
-    if (parsedCodec === 'fLaC' || parsedCodec === 'Opus') {
-      // Opting not to get `preferManagedMediaSource` from player config for isSupported() check for simplicity
-      const preferManagedMediaSource = false;
-      return getCodecCompatibleName(parsedCodec, preferManagedMediaSource);
-    }
-
-    logger.warn(`Unhandled audio codec "${parsedCodec}" in mp4 MAP`);
-    return parsedCodec || 'mp4a';
-  }
+  // Since mp4-tools cannot parse full codec string (see 'TODO: Parse codec details'... in mp4-tools)
   // Provide defaults based on codec type
   // This allows for some playback of some fmp4 playlists without CODECS defined in manifest
-  logger.warn(`Unhandled video codec "${parsedCodec}" in mp4 MAP`);
-  return parsedCodec || 'avc1';
+  if (parsedCodec === 'hvc1' || parsedCodec === 'hev1') {
+    return 'hvc1.1.c.L120.90';
+  }
+  if (parsedCodec === 'av01') {
+    return 'av01.0.04M.08';
+  }
+  if (parsedCodec === 'avc1' || type === ElementaryStreamTypes.VIDEO) {
+    return 'avc1.42e01e';
+  }
+  return 'mp4a.40.5';
 }
 export default PassThroughRemuxer;

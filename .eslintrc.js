@@ -16,9 +16,6 @@ module.exports = {
     __USE_CMCD__: true,
     __USE_CONTENT_STEERING__: true,
     __USE_VARIABLE_SUBSTITUTION__: true,
-    __USE_M2TS_ADVANCED_CODECS__: true,
-    __USE_MEDIA_CAPABILITIES__: true,
-    __USE_INTERSTITIALS__: true,
   },
   // see https://github.com/standard/eslint-config-standard
   // 'prettier' (https://github.com/prettier/eslint-config-prettier) must be last
@@ -26,7 +23,6 @@ module.exports = {
   parser: '@typescript-eslint/parser',
   parserOptions: {
     sourceType: 'module',
-    project: './tsconfig.json',
   },
   plugins: ['@typescript-eslint', 'import'],
   rules: {
@@ -81,43 +77,15 @@ module.exports = {
   },
   overrides: [
     {
-      parserOptions: {
-        project: ['./tsconfig.json'],
-      },
       files: ['*.ts'],
       rules: {
         'no-unused-vars': 0,
         'no-undef': 0,
         'no-use-before-define': 'off',
-        'import/order': [
-          'warn',
-          {
-            alphabetize: {
-              order: 'asc',
-            },
-            groups: [
-              'builtin',
-              'external',
-              'internal',
-              ['sibling', 'index'],
-              'parent',
-              'type',
-            ],
-            'newlines-between': 'never',
-          },
-        ],
-        'sort-imports': [
-          'error',
-          {
-            ignoreCase: true,
-            ignoreDeclarationSort: true,
-          },
-        ],
         '@typescript-eslint/no-unused-vars': [
           'warn',
           {
             args: 'none',
-            caughtErrors: 'none',
           },
         ],
         '@typescript-eslint/prefer-optional-chain': 2,
@@ -128,9 +96,6 @@ module.exports = {
             objectLiteralTypeAssertions: 'never',
           },
         ],
-        '@typescript-eslint/consistent-type-imports': 'error',
-        '@typescript-eslint/no-import-type-side-effects': 'error',
-        '@typescript-eslint/no-restricted-imports': 'error',
       },
     },
   ],

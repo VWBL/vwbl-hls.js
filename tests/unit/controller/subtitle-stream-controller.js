@@ -3,11 +3,7 @@ import sinon from 'sinon';
 import Hls from '../../../src/hls';
 import { Events } from '../../../src/events';
 import { FragmentTracker } from '../../../src/controller/fragment-tracker';
-import { Fragment } from '../../../src/loader/fragment';
-import { PlaylistLevelType } from '../../../src/types/loader';
-import { AttrList } from '../../../src/utils/attr-list';
 import KeyLoader from '../../../src/loader/key-loader';
-import { State } from '../../../src/controller/base-stream-controller';
 import { SubtitleStreamController } from '../../../src/controller/subtitle-stream-controller';
 
 const mediaMock = {
@@ -20,11 +16,11 @@ const tracksMock = [
   {
     id: 0,
     details: { url: '', fragments: [] },
-    attrs: new AttrList(),
+    attrs: {},
   },
   {
     id: 1,
-    attrs: new AttrList(),
+    attrs: {},
   },
 ];
 
@@ -43,13 +39,12 @@ describe('SubtitleStreamController', function () {
     subtitleStreamController = new SubtitleStreamController(
       hls,
       fragmentTracker,
-      keyLoader,
+      keyLoader
     );
 
     subtitleStreamController.onMediaAttached(Events.MEDIA_ATTACHED, {
       media: mediaMock,
     });
-    subtitleStreamController.state = State.IDLE;
   });
 
   afterEach(function () {
@@ -147,16 +142,19 @@ describe('SubtitleStreamController', function () {
 
   describe('onMediaSeeking', function () {
     it('nulls fragPrevious when seeking away from fragCurrent', function () {
-      subtitleStreamController.fragCurrent = new Fragment(
-        PlaylistLevelType.MAIN,
-        '',
-      );
-      subtitleStreamController.fragCurrent.start = 1000;
-      subtitleStreamController.fragCurrent.duration = 10;
-      subtitleStreamController.fragPrevious = new Fragment(
-        PlaylistLevelType.MAIN,
-        '',
-      );
+      subtitleStreamController.fragCurrent = {
+        start: 1000,
+        duration: 10,
+        loader: {
+          abort: () => {
+            this.state.aborted = true;
+          },
+          stats: {
+            aborted: false,
+          },
+        },
+      };
+      subtitleStreamController.fragPrevious = {};
       subtitleStreamController.onMediaSeeking();
       expect(subtitleStreamController.fragPrevious).to.not.exist;
     });
