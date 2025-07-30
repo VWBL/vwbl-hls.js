@@ -5,7 +5,7 @@ module.exports = {
     es6: false,
     mocha: true,
   },
-  plugins: ['mocha', 'n'],
+  plugins: ['mocha', 'node'],
   globals: {
     // Test globals
     after: false,
@@ -32,7 +32,7 @@ module.exports = {
       { property: 'find' }, // Intended to block usage of Array.prototype.find
       { property: 'only' }, // Intended to block usage of it.only in commits
     ],
-    'n/no-restricted-require': ['error', ['assert']],
+    'node/no-restricted-require': ['error', ['assert']],
     'mocha/no-mocha-arrows': 2,
   },
 };

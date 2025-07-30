@@ -12,7 +12,7 @@ function createTestStream(
   description,
   live = false,
   abr = true,
-  skip_ua = [],
+  skip_ua = []
 ) {
   return {
     url: url,
@@ -38,7 +38,7 @@ function createTestStreamWithConfig(target, config) {
     target.description,
     target.live,
     target.abr,
-    target.skip_ua,
+    target.skip_ua
   );
 
   testStream.config = config;
@@ -147,7 +147,7 @@ module.exports = {
     {
       widevineLicenseUrl: 'https://cwip-shaka-proxy.appspot.com/no_auth',
       emeEnabled: true,
-    },
+    }
   ),
   audioOnlyMultipleLevels: {
     url: 'https://s3.amazonaws.com/qa.jwplayer.com/~alex/121628/new_master.m3u8',
@@ -183,7 +183,7 @@ module.exports = {
     },
     {
       avBufferOffset: 10.5,
-    },
+    }
   ),
   altAudioAndTracks: {
     // url: 'https://wowzaec2demo.streamlock.net/vod-multitrack/_definst_/smil:ElephantsDream/elephantsdream2.smil/playlist.m3u',
@@ -203,7 +203,7 @@ module.exports = {
       // the timeline shifts roughly 10 seconds seconds back, and as a result buffering skips several segments
       // to adjust for the currentTime now being places at the very end of the stream.
       allowedBufferedRangesInSeekTest: 3,
-    },
+    }
   ),
   altAudioMultiAudioOnly: {
     url: 'https://playertest.longtailvideo.com/adaptive/alt-audio-no-video/angel-one.m3u8',
@@ -256,28 +256,10 @@ module.exports = {
     skipFunctionalTests: true,
   },
   startDelimiterOverlappingBetweenPESPackets: {
-    url: 'https://wistia.github.io/hlsjs-test-streams/assets/start-delimiter.m3u8',
+    url: 'https://hlsjs-test-streams-wistia.s3.amazonaws.com/start-delimiter.m3u8',
     description: `A stream with the start delimiter overlapping between PES packets.
        Related to https://github.com/video-dev/hls.js/issues/3834, where Apple Silicon chips throw decoding errors if
        NAL units are not starting right at the beginning of the PES packet when using hardware accelerated decoding.`,
     abr: false,
-    skipFunctionalTests: true,
-  },
-  aes256: {
-    url: 'https://jvaryhlstests.blob.core.windows.net/hlstestdata/playlist_encrypted.m3u8',
-    description: 'aes-256 and aes-256-ctr full segment encryption',
-    abr: false,
-  },
-  mpegTsHevcHls: {
-    url: 'https://devoldemar.github.io/streams/hls/bipbop/hevc.m3u8',
-    description: 'Advanced stream (HEVC Main 10, MPEG-TS segments)',
-    skipFunctionalTests: true,
-  },
-  mpegTsBitmovinHevc: {
-    url: 'https://bitmovin-a.akamaihd.net/content/dataset/multi-codec/hevc/v720p_ts.m3u8',
-    description:
-      'HLS M2TS by Bitmovin (HEVC Main, many NALUs overflowing PESes, video only)',
-    abr: false,
-    skipFunctionalTests: true,
   },
 };

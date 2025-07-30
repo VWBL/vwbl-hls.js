@@ -1,15 +1,16 @@
-import chai from 'chai';
-import sinon from 'sinon';
-import sinonChai from 'sinon-chai';
-import { multivariantPlaylistWithRedundantFallbacks } from './level-controller';
-import { ErrorDetails, ErrorTypes } from '../../../src/errors';
-import { Events } from '../../../src/events';
 import Hls from '../../../src/hls';
+import { Events } from '../../../src/events';
+import { ErrorDetails, ErrorTypes } from '../../../src/errors';
 import type {
   ErrorData,
   FragLoadedData,
   LevelSwitchingData,
 } from '../../../src/types/events';
+
+import sinon from 'sinon';
+import chai from 'chai';
+import sinonChai from 'sinon-chai';
+import { multivariantPlaylistWithRedundantFallbacks } from './level-controller';
 
 chai.use(sinonChai);
 const expect = chai.expect;
@@ -29,7 +30,6 @@ describe('ErrorController Integration Tests', function () {
       // debug: true,
       startFragPrefetch: true,
       enableWorker: false,
-      testBandwidth: false,
     });
     sinon.spy(hls, 'stopLoad');
     sinon.spy(hls, 'trigger');
@@ -50,17 +50,17 @@ describe('ErrorController Integration Tests', function () {
         hls.on(Events.MANIFEST_LOADED, (event, data) =>
           reject(
             new Error(
-              'Manifest Loaded should not be triggered when manifest parsing fails',
-            ),
-          ),
+              'Manifest Loaded should not be triggered when manifest parsing fails'
+            )
+          )
         );
         server.respond();
       }).then(
         expectFatalErrorEventToStopPlayer(
           hls,
           ErrorDetails.MANIFEST_PARSING_ERROR,
-          'no EXTM3U delimiter',
-        ),
+          'no EXTM3U delimiter'
+        )
       );
     });
 
@@ -72,17 +72,17 @@ describe('ErrorController Integration Tests', function () {
         hls.on(Events.MANIFEST_LOADED, (event, data) =>
           reject(
             new Error(
-              'Manifest Loaded should not be triggered when manifest parsing fails',
-            ),
-          ),
+              'Manifest Loaded should not be triggered when manifest parsing fails'
+            )
+          )
         );
         server.respond();
       }).then(
         expectFatalErrorEventToStopPlayer(
           hls,
           ErrorDetails.MANIFEST_PARSING_ERROR,
-          'no levels found in manifest',
-        ),
+          'no levels found in manifest'
+        )
       );
     });
 
@@ -94,17 +94,17 @@ describe('ErrorController Integration Tests', function () {
         hls.on(Events.MANIFEST_LOADED, (event, data) =>
           reject(
             new Error(
-              'Manifest Loaded should not be triggered when manifest parsing fails',
-            ),
-          ),
+              'Manifest Loaded should not be triggered when manifest parsing fails'
+            )
+          )
         );
         server.respond();
       }).then(
         expectFatalErrorEventToStopPlayer(
           hls,
           ErrorDetails.MANIFEST_PARSING_ERROR,
-          'Missing preceding EXT-X-DEFINE tag for Variable Reference: "foobar"',
-        ),
+          'Missing preceding EXT-X-DEFINE tag for Variable Reference: "foobar"'
+        )
       );
     });
 
@@ -116,17 +116,17 @@ describe('ErrorController Integration Tests', function () {
         hls.on(Events.MANIFEST_PARSED, (event, data) =>
           reject(
             new Error(
-              'Manifest Parsed should not be triggered when manifest parsing fails',
-            ),
-          ),
+              'Manifest Parsed should not be triggered when manifest parsing fails'
+            )
+          )
         );
         server.respond();
       }).then(
         expectFatalErrorEventToStopPlayer(
           hls,
           ErrorDetails.MANIFEST_INCOMPATIBLE_CODECS_ERROR,
-          'no level with compatible codecs found in manifest (one or more CODECS in variant not supported: ["avc9.000000,mp5a.40.2,av99.000000"])',
-        ),
+          'no level with compatible codecs found in manifest'
+        )
       );
     });
 
@@ -139,17 +139,17 @@ describe('ErrorController Integration Tests', function () {
         hls.on(Events.MANIFEST_PARSED, (event, data) =>
           reject(
             new Error(
-              'Manifest Parsed should not be triggered when manifest parsing fails',
-            ),
-          ),
+              'Manifest Parsed should not be triggered when manifest parsing fails'
+            )
+          )
         );
         server.respond();
       }).then(
         expectFatalErrorEventToStopPlayer(
           hls,
           ErrorDetails.MANIFEST_LOAD_ERROR,
-          'A network error (status 400) occurred while loading manifest',
-        ),
+          'A network error (status 400) occurred while loading manifest'
+        )
       );
     });
 
@@ -162,9 +162,9 @@ describe('ErrorController Integration Tests', function () {
         hls.on(Events.MANIFEST_PARSED, (event, data) =>
           reject(
             new Error(
-              'Manifest Parsed should not be triggered when manifest parsing fails',
-            ),
-          ),
+              'Manifest Parsed should not be triggered when manifest parsing fails'
+            )
+          )
         );
         server.respond();
         timers.tick(1000);
@@ -186,8 +186,8 @@ describe('ErrorController Integration Tests', function () {
           expectFatalErrorEventToStopPlayer(
             hls,
             ErrorDetails.MANIFEST_LOAD_ERROR,
-            'A network error (status 501) occurred while loading manifest',
-          ),
+            'A network error (status 501) occurred while loading manifest'
+          )
         );
     });
 
@@ -199,9 +199,9 @@ describe('ErrorController Integration Tests', function () {
         hls.on(Events.MANIFEST_PARSED, (event, data) =>
           reject(
             new Error(
-              'Manifest Parsed should not be triggered when manifest parsing fails',
-            ),
-          ),
+              'Manifest Parsed should not be triggered when manifest parsing fails'
+            )
+          )
         );
         // tick 3 times to trigger 2 retries and then an error
         timers.tick(hls.config.manifestLoadPolicy.default.maxLoadTimeMs + 1);
@@ -211,8 +211,8 @@ describe('ErrorController Integration Tests', function () {
         expectFatalErrorEventToStopPlayer(
           hls,
           ErrorDetails.MANIFEST_LOAD_TIMEOUT,
-          'A network timeout occurred while loading manifest',
-        ),
+          'A network timeout occurred while loading manifest'
+        )
       );
     });
   });
@@ -226,17 +226,17 @@ describe('ErrorController Integration Tests', function () {
         hls.on(Events.LEVEL_LOADED, () =>
           reject(
             new Error(
-              'Level Loaded should not be triggered when playlist parsing fails',
-            ),
-          ),
+              'Level Loaded should not be triggered when playlist parsing fails'
+            )
+          )
         );
         server.respond();
       }).then(
         expectFatalErrorEventToStopPlayer(
           hls,
           ErrorDetails.LEVEL_PARSING_ERROR,
-          'Missing preceding EXT-X-DEFINE tag for Variable Reference: "foobar"',
-        ),
+          'Missing preceding EXT-X-DEFINE tag for Variable Reference: "foobar"'
+        )
       );
     });
 
@@ -248,17 +248,17 @@ describe('ErrorController Integration Tests', function () {
         hls.on(Events.LEVEL_LOADED, () =>
           reject(
             new Error(
-              'Level Loaded should not be triggered when playlist parsing fails',
-            ),
-          ),
+              'Level Loaded should not be triggered when playlist parsing fails'
+            )
+          )
         );
         server.respond();
       }).then(
         expectFatalErrorEventToStopPlayer(
           hls,
           ErrorDetails.LEVEL_PARSING_ERROR,
-          'Missing Target Duration',
-        ),
+          'Missing Target Duration'
+        )
       );
     });
 
@@ -266,23 +266,21 @@ describe('ErrorController Integration Tests', function () {
       hls.loadSource('noSegmentsVod.m3u8');
       hls.stopLoad.should.have.been.calledOnce;
       return new Promise((resolve, reject) => {
-        hls.on(Events.ERROR, (event, data) =>
-          Promise.resolve().then(() => resolve(data)),
-        );
+        hls.on(Events.ERROR, (event, data) => resolve(data));
         hls.on(Events.LEVEL_LOADED, () =>
           reject(
             new Error(
-              'Level Loaded should not be triggered when playlist parsing fails',
-            ),
-          ),
+              'Level Loaded should not be triggered when playlist parsing fails'
+            )
+          )
         );
         server.respond();
       }).then(
         expectFatalErrorEventToStopPlayer(
           hls,
           ErrorDetails.LEVEL_EMPTY_ERROR,
-          'No Segments found in Playlist',
-        ),
+          'No Segments found in Playlist'
+        )
       );
     });
 
@@ -293,9 +291,9 @@ describe('ErrorController Integration Tests', function () {
         hls.on(Events.LEVEL_LOADED, () =>
           reject(
             new Error(
-              'Level Loaded should not be triggered when playlist parsing fails',
-            ),
-          ),
+              'Level Loaded should not be triggered when playlist parsing fails'
+            )
+          )
         );
         server.respond();
       }).then((data: ErrorData) => {
@@ -303,13 +301,13 @@ describe('ErrorController Integration Tests', function () {
         expect(data.fatal).to.equal(false, 'Error should not be fatal');
         expect(data.error.message).to.equal(
           'No Segments found in Playlist',
-          data.error.message,
+          data.error.message
         );
         hls.stopLoad.should.have.been.calledOnce;
         hls.trigger.should.not.have.been.calledWith(Events.LEVEL_LOADED);
         server.respondWith(
           'noSegmentsLive.m3u8',
-          testResponses['oneSegmentLive.m3u8'],
+          testResponses['oneSegmentLive.m3u8']
         );
         timers.tick(6000);
         server.respond();
@@ -336,7 +334,7 @@ describe('ErrorController Integration Tests', function () {
           expect(data.fatal).to.equal(false, 'Error should not be fatal');
           expect(data.error.message).to.equal(
             'Missing Target Duration',
-            data.error.message,
+            data.error.message
           );
           hls.stopLoad.should.have.been.calledOnce;
           timers.tick(100);
@@ -346,7 +344,7 @@ describe('ErrorController Integration Tests', function () {
           hls.trigger.should.have.been.calledWith(Events.LEVEL_LOADED);
           expect(hls.currentLevel).to.not.equal(
             errorIndex,
-            'Should not be on errored level',
+            'Should not be on errored level'
           );
         });
     });
@@ -366,14 +364,14 @@ describe('ErrorController Integration Tests', function () {
         expect(data.details).to.equal(ErrorDetails.LEVEL_LOAD_ERROR);
         expect(data.fatal).to.equal(false, 'Error should not be fatal');
         expect(data.error.message).to.equal(
-          'A network error (status 400) occurred while loading level: 2 id: 0',
-          data.error.message,
+          'A network error (status 400) occurred while loading level: 1 id: 0',
+          data.error.message
         );
         hls.stopLoad.should.have.been.calledOnce;
         hls.trigger.should.have.been.calledWith(Events.LEVEL_LOADED);
         expect(hls.currentLevel).to.not.equal(
           errorIndex,
-          'Should not be on errored level',
+          'Should not be on errored level'
         );
       });
     });
@@ -392,15 +390,15 @@ describe('ErrorController Integration Tests', function () {
         expect(data.details).to.equal(ErrorDetails.LEVEL_LOAD_TIMEOUT);
         expect(data.fatal).to.equal(false, 'Error should not be fatal');
         expect(data.error.message).to.equal(
-          'A network timeout occurred while loading level: 2 id: 0',
-          data.error.message,
+          'A network timeout occurred while loading level: 1 id: 0',
+          data.error.message
         );
         server.respond();
         hls.stopLoad.should.have.been.calledOnce;
         hls.trigger.should.have.been.calledWith(Events.LEVEL_LOADED);
         expect(hls.currentLevel).to.not.equal(
           errorIndex,
-          'Should not be on errored level',
+          'Should not be on errored level'
         );
       });
     });
@@ -422,16 +420,16 @@ describe('ErrorController Integration Tests', function () {
             resolve(data);
           } else {
             timers.tick(
-              hls.config.fragLoadPolicy.default.errorRetry!.maxRetryDelayMs,
+              hls.config.fragLoadPolicy.default.errorRetry!.maxRetryDelayMs
             );
           }
         });
         hls.on(Events.FRAG_LOADED, (event, data) =>
           reject(
             new Error(
-              'Frag Loaded should not be triggered when frag loading fails',
-            ),
-          ),
+              'Frag Loaded should not be triggered when frag loading fails'
+            )
+          )
         );
         server.respond();
       }).then((errorData: ErrorData) => {
@@ -439,7 +437,7 @@ describe('ErrorController Integration Tests', function () {
         const finalAssertion = expectFatalErrorEventToStopPlayer(
           hls,
           ErrorDetails.FRAG_LOAD_ERROR,
-          'HTTP Error 500 Internal Server Error',
+          'HTTP Error 500 Internal Server Error'
         );
         finalAssertion(errorData);
       });
@@ -469,9 +467,9 @@ describe('ErrorController Integration Tests', function () {
         hls.on(Events.FRAG_LOADED, (event, data) =>
           reject(
             new Error(
-              'Frag Loaded should not be triggered when frag loading fails',
-            ),
-          ),
+              'Frag Loaded should not be triggered when frag loading fails'
+            )
+          )
         );
         server.respond();
       }).then((errorData: ErrorData) => {
@@ -479,7 +477,7 @@ describe('ErrorController Integration Tests', function () {
         const finalAssertion = expectFatalErrorEventToStopPlayer(
           hls,
           ErrorDetails.FRAG_LOAD_TIMEOUT,
-          'Timeout after 10000ms',
+          'Timeout after 10000ms'
         );
         finalAssertion(errorData);
       });
@@ -495,7 +493,7 @@ describe('ErrorController Integration Tests', function () {
 #EXT-X-MAP:URI="init.mp4"
 #EXTINF:6
 segment.mp4
-#EXT-X-ENDLIST`,
+#EXT-X-ENDLIST`
       );
       server.respondWith('aes-128-init-segment.m3u8/bad.key', [
         200,
@@ -528,17 +526,17 @@ segment.mp4
         hls.on(Events.FRAG_DECRYPTED, (event, data) =>
           reject(
             new Error(
-              'Frag Decrypted should not be triggered when frag decryption fails',
-            ),
-          ),
+              'Frag Decrypted should not be triggered when frag decryption fails'
+            )
+          )
         );
         server.respond();
       }).then(
         expectFatalErrorEventToStopPlayer(
           hls,
           ErrorDetails.FRAG_DECRYPT_ERROR,
-          'Offset is outside the bounds of the DataView',
-        ),
+          'Offset is outside the bounds of the DataView'
+        )
       );
     });
   });
@@ -563,8 +561,8 @@ segment.mp4
           } else if (data.fatal) {
             reject(
               new Error(
-                `Error fatal before retries exhausted: "${data.error.message}"`,
-              ),
+                `Error fatal before retries exhausted: "${data.error.message}"`
+              )
             );
           } else {
             timers.tick(8000);
@@ -575,8 +573,8 @@ segment.mp4
         expectFatalErrorEventToStopPlayer(
           hls,
           ErrorDetails.FRAG_PARSING_ERROR,
-          'Failed to find demuxer by probing fragment data',
-        ),
+          'Failed to find demuxer by probing fragment data'
+        )
       );
     });
 
@@ -610,7 +608,7 @@ segment.mp4
         hls.trigger.should.have.been.calledWith(Events.LEVEL_LOADED);
         expect(hls.currentLevel).to.not.equal(
           errorIndex,
-          'Should not be on errored level',
+          'Should not be on errored level'
         );
       });
     });
@@ -640,7 +638,7 @@ segment.mp4
         timers.tick(5000);
       }).then((data: ErrorData) => {
         expect(data.details).to.equal(
-          ErrorDetails.KEY_SYSTEM_STATUS_OUTPUT_RESTRICTED,
+          ErrorDetails.KEY_SYSTEM_STATUS_OUTPUT_RESTRICTED
         );
         expect(data.fatal).to.equal(false, 'Error should not be fatal');
         expect(data.error.message).to.equal('HDCP level output restricted');
@@ -649,7 +647,7 @@ segment.mp4
         expect(hls.maxHdcpLevel).to.equal('TYPE-0');
         expect(hls.currentLevel).to.not.equal(
           errorIndex,
-          'Should not be on errored level',
+          'Should not be on errored level'
         );
       });
     });
@@ -666,26 +664,26 @@ segment.mp4
         /http:\/\/www\.(foo|bar|baz)\.com\/tier.+\.m3u8/,
         testResponses['oneSegmentVod.m3u8'].replace(
           'segment.mp4',
-          'video-segment.mp4',
-        ),
+          'video-segment.mp4'
+        )
       );
       server.respondWith(
         /http:\/\/www\.(foo|bar|baz)\.com\/audio.+\.m3u8/,
         testResponses['oneSegmentVod.m3u8'].replace(
           'segment.mp4',
-          'audio-segment.mp4',
-        ),
+          'audio-segment.mp4'
+        )
       );
       server.respondWith(
         /http:\/\/www\.(foo|bar|baz)\.com\/subs.+\.m3u8/,
         testResponses['oneSegmentVod.m3u8'].replace(
           'segment.mp4',
-          'subs-segment.mp4',
-        ),
+          'subs-segment.mp4'
+        )
       );
       server.respondWith(
         /http:\/\/www\.(foo|bar)\.com\/(video|audio)-segment.mp4/,
-        [500, {}, new ArrayBuffer(0)],
+        [500, {}, new ArrayBuffer(0)]
       );
       server.respondWith(/http:\/\/www\.baz\.com\/audio-segment.mp4/, [
         200,
@@ -708,7 +706,7 @@ segment.mp4
       hls.on(Events.AUDIO_TRACK_LOADING, loadingEventCallback(server, timers));
       hls.on(
         Events.SUBTITLE_TRACK_LOADING,
-        loadingEventCallback(server, timers),
+        loadingEventCallback(server, timers)
       );
       hls.on(Events.FRAG_LOADING, loadingEventCallback(server, timers));
       hls.on(Events.ERROR, (event, data) => {
@@ -726,7 +724,7 @@ segment.mp4
         .then((data: LevelSwitchingData) => {
           expect(
             errors,
-            'fragment errors after yeilding to first error event',
+            'fragment errors after yeilding to first error event'
           ).to.have.lengthOf(2);
           expect(hls.levels[0].uri).to.equal('http://www.bar.com/tier6.m3u8');
           return new Promise((resolve, reject) => {
@@ -740,8 +738,8 @@ segment.mp4
         .then((data: LevelSwitchingData) => {
           expect(
             errors,
-            'fragment errors after yeilding to second error event',
-          ).to.have.lengthOf(8);
+            'fragment errors after yeilding to second error event'
+          ).to.have.lengthOf(12);
           expect(hls.levels[0].uri).to.equal('http://www.baz.com/tier6.m3u8');
           return new Promise((resolve, reject) => {
             hls.on(Events.FRAG_LOADED, (event, data) => {
@@ -749,7 +747,7 @@ segment.mp4
             });
             hls.on(Events.ERROR, (event, data) => {
               reject(
-                new Error(`Unexpected error after fallback: ${data.error}`),
+                new Error(`Unexpected error after fallback: ${data.error}`)
               );
             });
           });
@@ -757,10 +755,10 @@ segment.mp4
         .then((data: FragLoadedData) => {
           expect(errors[errors.length - 1].fatal).to.equal(
             false,
-            'Error should not be fatal',
+            'Error should not be fatal'
           );
           expect(data.frag.url).to.equal(
-            'http://www.baz.com/video-segment.mp4',
+            'http://www.baz.com/audio-segment.mp4'
           );
         });
     });
@@ -775,22 +773,22 @@ segment.mp4
         /http:\/\/www\.(foo|bar|baz)\.com\/tier.+\.m3u8/,
         testResponses['oneSegmentVod.m3u8'].replace(
           'segment.mp4',
-          'video-segment.mp4',
-        ),
+          'video-segment.mp4'
+        )
       );
       server.respondWith(
         /http:\/\/www\.(foo|bar|baz)\.com\/audio.+\.m3u8/,
         testResponses['oneSegmentVod.m3u8'].replace(
           'segment.mp4',
-          'audio-segment.mp4',
-        ),
+          'audio-segment.mp4'
+        )
       );
       server.respondWith(
         /http:\/\/www\.(foo|bar|baz)\.com\/subs.+\.m3u8/,
         testResponses['oneSegmentVod.m3u8'].replace(
           'segment.mp4',
-          'subs-segment.mp4',
-        ),
+          'subs-segment.mp4'
+        )
       );
       server.respondWith(/http:\/\/www\.(foo|bar)\.com\/audio-segment.mp4/, [
         500,
@@ -818,7 +816,7 @@ segment.mp4
       hls.on(Events.AUDIO_TRACK_LOADING, loadingEventCallback(server, timers));
       hls.on(
         Events.SUBTITLE_TRACK_LOADING,
-        loadingEventCallback(server, timers),
+        loadingEventCallback(server, timers)
       );
       hls.on(Events.FRAG_LOADING, loadingEventCallback(server, timers));
       hls.on(Events.ERROR, (event, data) => {
@@ -836,7 +834,7 @@ segment.mp4
         .then((data: LevelSwitchingData) => {
           expect(
             errors,
-            'fragment errors after yeilding to first error event',
+            'fragment errors after yeilding to first error event'
           ).to.have.lengthOf(2);
           expect(hls.levels[0].uri).to.equal('http://www.bar.com/tier6.m3u8');
           return new Promise((resolve, reject) => {
@@ -850,8 +848,8 @@ segment.mp4
         .then((data: LevelSwitchingData) => {
           expect(
             errors,
-            'fragment errors after yeilding to second error event',
-          ).to.have.lengthOf(7);
+            'fragment errors after yeilding to second error event'
+          ).to.have.lengthOf(12);
           expect(hls.levels[0].uri).to.equal('http://www.baz.com/tier6.m3u8');
           return new Promise((resolve, reject) => {
             hls.on(Events.FRAG_LOADED, (event, data) => {
@@ -865,10 +863,10 @@ segment.mp4
         .then((data: FragLoadedData) => {
           expect(errors[errors.length - 1].fatal).to.equal(
             false,
-            'Error should not be fatal',
+            'Error should not be fatal'
           );
           expect(data.frag.url).to.equal(
-            'http://www.baz.com/video-segment.mp4',
+            'http://www.baz.com/audio-segment.mp4'
           );
         });
     });
@@ -954,15 +952,15 @@ function setupMockServerResponses(server: sinon.SinonFakeServer) {
   });
   server.respondWith(
     /multivariantPlaylist.*\/low.m3u8/,
-    testResponses['oneSegmentVod.m3u8'],
+    testResponses['oneSegmentVod.m3u8']
   );
   server.respondWith(
     /multivariantPlaylist.*\/mid.m3u8/,
-    testResponses['oneSegmentVod.m3u8'],
+    testResponses['oneSegmentVod.m3u8']
   );
   server.respondWith(
     /multivariantPlaylist.*\/high.m3u8/,
-    testResponses['oneSegmentVod.m3u8'],
+    testResponses['oneSegmentVod.m3u8']
   );
 }
 
@@ -977,7 +975,7 @@ function loadingEventCallback(server, timers) {
 function expectFatalErrorEventToStopPlayer(
   hls: Hls,
   withErrorDetails: ErrorDetails,
-  withErrorMessage: string,
+  withErrorMessage: string
 ) {
   return (data: ErrorData) => {
     expect(data.details).to.equal(withErrorDetails);
@@ -993,7 +991,7 @@ function expectPlayerStopped(hlsPrivate: any) {
     // All stream-controllers are stopped
     if ('state' in controller) {
       expect(controller.state, `${controller.constructor.name}.state`).to.equal(
-        'STOPPED',
+        'STOPPED'
       );
     }
     // All loaders controllers have destroyed their loaders

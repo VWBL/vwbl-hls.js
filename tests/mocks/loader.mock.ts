@@ -1,5 +1,4 @@
 import { LoadStats } from '../../src/loader/load-stats';
-import type { HlsConfig } from '../../src/config';
 import type {
   FragmentLoaderContext,
   Loader,
@@ -7,6 +6,7 @@ import type {
   LoaderConfiguration,
   LoaderContext,
 } from '../../src/types/loader';
+import type { HlsConfig } from '../../src/config';
 
 export class MockXhr implements Loader<LoaderContext> {
   context!: LoaderContext;
@@ -21,7 +21,7 @@ export class MockXhr implements Loader<LoaderContext> {
   load(
     context: LoaderContext,
     config: LoaderConfiguration,
-    callbacks: LoaderCallbacks<LoaderContext>,
+    callbacks: LoaderCallbacks<LoaderContext>
   ) {
     this.stats.loading.start = self.performance.now();
     this.context = context;

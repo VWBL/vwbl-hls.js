@@ -79,14 +79,9 @@ describe('BufferHelper', function () {
         start: 0,
         end: 0.5,
         nextStart: 1,
-        bufferedIndex: 0,
-        buffered: [
-          { start: 0, end: 0.5 },
-          { start: 1, end: 2 },
-        ],
       });
     });
-    it('should return empty buffer info when media.buffered throws', function () {
+    it('should return empty buffer info if media does not exist', function () {
       const invalidMedia = {
         get buffered() {
           throw new Error('InvalidStateError');
@@ -94,12 +89,12 @@ describe('BufferHelper', function () {
       };
       const maxHoleDuration = 0;
       expect(
-        BufferHelper.bufferInfo(invalidMedia, 0, maxHoleDuration),
+        BufferHelper.bufferInfo(invalidMedia, 0, maxHoleDuration)
       ).to.deep.equal({
         len: 0,
         start: 0,
         end: 0,
-        bufferedIndex: -1,
+        nextStart: undefined,
       });
     });
     it('should return empty buffer info if media does not exist', function () {
@@ -108,7 +103,7 @@ describe('BufferHelper', function () {
         len: 0,
         start: 0,
         end: 0,
-        bufferedIndex: -1,
+        nextStart: undefined,
       });
     });
   });
@@ -129,44 +124,36 @@ describe('BufferHelper', function () {
       ];
       const maxHoleDuration = 0;
       expect(
-        BufferHelper.bufferedInfo(buffered, 0, maxHoleDuration),
+        BufferHelper.bufferedInfo(buffered, 0, maxHoleDuration)
       ).to.deep.equal({
         len: 0.5,
         start: 0,
         end: 0.5,
         nextStart: 1,
-        bufferedIndex: 0,
-        buffered,
       });
       expect(
-        BufferHelper.bufferedInfo(buffered, 0.5, maxHoleDuration),
+        BufferHelper.bufferedInfo(buffered, 0.5, maxHoleDuration)
       ).to.deep.equal({
         len: 0,
         start: 0.5,
         end: 0.5,
         nextStart: 1,
-        bufferedIndex: 0,
-        buffered,
       });
       expect(
-        BufferHelper.bufferedInfo(buffered, 1, maxHoleDuration),
+        BufferHelper.bufferedInfo(buffered, 1, maxHoleDuration)
       ).to.deep.equal({
         len: 1,
         start: 1,
         end: 2,
         nextStart: undefined,
-        bufferedIndex: 1,
-        buffered,
       });
       expect(
-        BufferHelper.bufferedInfo(buffered, 1.5, maxHoleDuration),
+        BufferHelper.bufferedInfo(buffered, 1.5, maxHoleDuration)
       ).to.deep.equal({
         len: 0.5,
         start: 1,
         end: 2,
         nextStart: undefined,
-        bufferedIndex: 1,
-        buffered,
       });
     });
     it('should return found buffer info when maxHoleDuration is 0.5', function () {
@@ -184,48 +171,39 @@ describe('BufferHelper', function () {
       ];
       const maxHoleDuration = 0.5;
       expect(
-        BufferHelper.bufferedInfo(buffered, 0, maxHoleDuration),
+        BufferHelper.bufferedInfo(buffered, 0, maxHoleDuration)
       ).to.deep.equal({
         len: 0.5,
         start: 0,
         end: 0.5,
         nextStart: 1,
-        bufferedIndex: 0,
-        buffered,
       });
       // M: maxHoleDuration: 0.5
       // |////////|________|////////////////|
       // 0       0.5 - M - 1                2
       expect(
-        BufferHelper.bufferedInfo(buffered, 0.5, maxHoleDuration),
+        BufferHelper.bufferedInfo(buffered, 0.5, maxHoleDuration)
       ).to.deep.equal({
         len: 1.5,
         start: 1,
         end: 2,
         nextStart: undefined,
-        bufferedIndex: 0, // input pos (-0.5 intersects first time range which is ignored by `maxHoleDuration`)
-        buffered,
       });
       expect(
-        BufferHelper.bufferedInfo(buffered, 1, maxHoleDuration),
+        BufferHelper.bufferedInfo(buffered, 1, maxHoleDuration)
       ).to.deep.equal({
         len: 1,
         start: 1,
         end: 2,
         nextStart: undefined,
-        bufferedIndex: 1,
-        buffered,
       });
       expect(
-        BufferHelper.bufferedInfo(buffered, 2, maxHoleDuration),
-        JSON.stringify(BufferHelper.bufferedInfo(buffered, 2, maxHoleDuration)),
+        BufferHelper.bufferedInfo(buffered, 2, maxHoleDuration)
       ).to.deep.equal({
         len: 0,
         start: 2,
         end: 2,
         nextStart: undefined,
-        bufferedIndex: 1,
-        buffered,
       });
     });
     it('should be able to handle unordered buffered', function () {
@@ -243,14 +221,12 @@ describe('BufferHelper', function () {
       ];
       const maxHoleDuration = 0.5;
       expect(
-        BufferHelper.bufferedInfo(buffered, 0, maxHoleDuration),
+        BufferHelper.bufferedInfo(buffered, 0, maxHoleDuration)
       ).to.deep.equal({
         len: 0.5,
         start: 0,
         end: 0.5,
         nextStart: 1,
-        bufferedIndex: 0,
-        buffered,
       });
     });
     it('should be able to merge adjacent time ranges with a small hole', function () {
@@ -268,14 +244,12 @@ describe('BufferHelper', function () {
       ];
       const maxHoleDuration = 1;
       expect(
-        BufferHelper.bufferedInfo(buffered, 0.8, maxHoleDuration),
+        BufferHelper.bufferedInfo(buffered, 0.8, maxHoleDuration)
       ).to.deep.equal({
         len: 1.2,
         start: 0,
         end: 2,
         nextStart: undefined,
-        bufferedIndex: 0,
-        buffered,
       });
     });
     it('should be able to merge overlapping time ranges', function () {
@@ -294,14 +268,12 @@ describe('BufferHelper', function () {
       ];
       const maxHoleDuration = 0.5;
       expect(
-        BufferHelper.bufferedInfo(buffered, 0.5, maxHoleDuration),
+        BufferHelper.bufferedInfo(buffered, 0.5, maxHoleDuration)
       ).to.deep.equal({
         len: 0.5,
         start: 0,
         end: 1,
         nextStart: undefined,
-        bufferedIndex: 1,
-        buffered,
       });
     });
     it('should return empty buffered if pos is out of range', function () {
@@ -317,28 +289,24 @@ describe('BufferHelper', function () {
       ];
       const maxHoleDuration = 0;
       expect(
-        BufferHelper.bufferedInfo(buffered, 5, maxHoleDuration),
+        BufferHelper.bufferedInfo(buffered, 5, maxHoleDuration)
       ).to.deep.equal({
         len: 0,
         start: 5,
         end: 5,
         nextStart: undefined,
-        bufferedIndex: -1,
-        buffered,
       });
     });
     it('should return empty buffered if buffered is empty', function () {
       const buffered = [];
       const maxHoleDuration = 0;
-
       expect(
-        BufferHelper.bufferedInfo(buffered, 5, maxHoleDuration),
-      ).to.include({
-        // `buffered` empty array fails deep.equal
+        BufferHelper.bufferedInfo(buffered, 5, maxHoleDuration)
+      ).to.deep.equal({
         len: 0,
         start: 5,
         end: 5,
-        buffered,
+        nextStart: undefined,
       });
     });
   });

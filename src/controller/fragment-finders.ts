@@ -1,6 +1,5 @@
 import BinarySearch from '../utils/binary-search';
-import type { Fragment, MediaFragment } from '../loader/fragment';
-import type { LevelDetails } from '../loader/level-details';
+import { Fragment } from '../loader/fragment';
 
 /**
  * Returns first fragment whose endPdt value exceeds the given PDT, or null.
@@ -9,10 +8,10 @@ import type { LevelDetails } from '../loader/level-details';
  * @param maxFragLookUpTolerance - The amount of time that a fragment's start/end can be within in order to be considered contiguous
  */
 export function findFragmentByPDT(
-  fragments: MediaFragment[],
+  fragments: Array<Fragment>,
   PDTValue: number | null,
-  maxFragLookUpTolerance: number,
-): MediaFragment | null {
+  maxFragLookUpTolerance: number
+): Fragment | null {
   if (
     PDTValue === null ||
     !Array.isArray(fragments) ||
@@ -55,79 +54,38 @@ export function findFragmentByPDT(
  * @returns a matching fragment or null
  */
 export function findFragmentByPTS(
-  fragPrevious: MediaFragment | null,
-  fragments: MediaFragment[],
+  fragPrevious: Fragment | null,
+  fragments: Array<Fragment>,
   bufferEnd: number = 0,
-  maxFragLookUpTolerance: number = 0,
-  nextFragLookupTolerance: number = 0.005,
-): MediaFragment | null {
-  let fragNext: MediaFragment | null = null;
+  maxFragLookUpTolerance: number = 0
+): Fragment | null {
+  let fragNext: Fragment | null = null;
   if (fragPrevious) {
-    fragNext = fragments[1 + fragPrevious.sn - fragments[0].sn] || null;
-    // check for buffer-end rounding error
-    const bufferEdgeError = (fragPrevious.endDTS as number) - bufferEnd;
-    if (bufferEdgeError > 0 && bufferEdgeError < 0.0000015) {
-      bufferEnd += 0.0000015;
-    }
-    if (
-      fragNext &&
-      fragPrevious.level !== fragNext.level &&
-      fragNext.end <= fragPrevious.end
-    ) {
-      fragNext = fragments[2 + fragPrevious.sn - fragments[0].sn] || null;
-    }
+    fragNext =
+      fragments[
+        (fragPrevious.sn as number) - (fragments[0].sn as number) + 1
+      ] || null;
   } else if (bufferEnd === 0 && fragments[0].start === 0) {
     fragNext = fragments[0];
   }
   // Prefer the next fragment if it's within tolerance
   if (
     fragNext &&
-    (((!fragPrevious || fragPrevious.level === fragNext.level) &&
-      fragmentWithinToleranceTest(
-        bufferEnd,
-        maxFragLookUpTolerance,
-        fragNext,
-      ) === 0) ||
-      fragmentWithinFastStartSwitch(
-        fragNext,
-        fragPrevious,
-        Math.min(nextFragLookupTolerance, maxFragLookUpTolerance),
-      ))
+    fragmentWithinToleranceTest(bufferEnd, maxFragLookUpTolerance, fragNext) ===
+      0
   ) {
     return fragNext;
   }
   // We might be seeking past the tolerance so find the best match
   const foundFragment = BinarySearch.search(
     fragments,
-    fragmentWithinToleranceTest.bind(null, bufferEnd, maxFragLookUpTolerance),
+    fragmentWithinToleranceTest.bind(null, bufferEnd, maxFragLookUpTolerance)
   );
   if (foundFragment && (foundFragment !== fragPrevious || !fragNext)) {
     return foundFragment;
   }
   // If no match was found return the next fragment after fragPrevious, or null
   return fragNext;
-}
-
-function fragmentWithinFastStartSwitch(
-  fragNext: Fragment,
-  fragPrevious: Fragment | null,
-  nextFragLookupTolerance: number,
-): boolean {
-  if (
-    fragPrevious &&
-    fragPrevious.start === 0 &&
-    fragPrevious.level < fragNext.level &&
-    (fragPrevious.endPTS || 0) > 0
-  ) {
-    const firstDuration = fragPrevious.tagList.reduce((duration, tag) => {
-      if (tag[0] === 'INF') {
-        duration += parseFloat(tag[1]);
-      }
-      return duration;
-    }, nextFragLookupTolerance);
-    return fragNext.start <= firstDuration;
-  }
-  return false;
 }
 
 /**
@@ -140,7 +98,7 @@ function fragmentWithinFastStartSwitch(
 export function fragmentWithinToleranceTest(
   bufferEnd = 0,
   maxFragLookUpTolerance = 0,
-  candidate: MediaFragment,
+  candidate: Fragment
 ) {
   // eagerly accept an accurate match (no tolerance)
   if (
@@ -165,7 +123,7 @@ export function fragmentWithinToleranceTest(
   // Set the lookup tolerance to be small enough to detect the current segment - ensures we don't skip over very small segments
   const candidateLookupTolerance = Math.min(
     maxFragLookUpTolerance,
-    candidate.duration + (candidate.deltaPTS ? candidate.deltaPTS : 0),
+    candidate.duration + (candidate.deltaPTS ? candidate.deltaPTS : 0)
   );
   if (
     candidate.start + candidate.duration - candidateLookupTolerance <=
@@ -194,12 +152,12 @@ export function fragmentWithinToleranceTest(
 export function pdtWithinToleranceTest(
   pdtBufferEnd: number,
   maxFragLookUpTolerance: number,
-  candidate: MediaFragment,
+  candidate: Fragment
 ): boolean {
   const candidateLookupTolerance =
     Math.min(
       maxFragLookUpTolerance,
-      candidate.duration + (candidate.deltaPTS ? candidate.deltaPTS : 0),
+      candidate.duration + (candidate.deltaPTS ? candidate.deltaPTS : 0)
     ) * 1000;
 
   // endProgramDateTime can be null, default to zero
@@ -208,9 +166,9 @@ export function pdtWithinToleranceTest(
 }
 
 export function findFragWithCC(
-  fragments: MediaFragment[],
-  cc: number,
-): MediaFragment | null {
+  fragments: Fragment[],
+  cc: number
+): Fragment | null {
   return BinarySearch.search(fragments, (candidate) => {
     if (candidate.cc < cc) {
       return 1;
@@ -220,34 +178,4 @@ export function findFragWithCC(
       return 0;
     }
   });
-}
-
-export function findNearestWithCC(
-  details: LevelDetails | undefined,
-  cc: number,
-  fragment: MediaFragment,
-): MediaFragment | null {
-  if (details) {
-    if (details.startCC <= cc && details.endCC >= cc) {
-      const start = fragment.start;
-      const end = fragment.end;
-      let fragments = details.fragments;
-      if (!fragment.relurl) {
-        const { fragmentHint } = details;
-        if (fragmentHint) {
-          fragments = fragments.concat(fragmentHint);
-        }
-      }
-      return BinarySearch.search(fragments, (candidate) => {
-        if (candidate.cc < cc || candidate.end <= start) {
-          return 1;
-        } else if (candidate.cc > cc || candidate.start >= end) {
-          return -1;
-        } else {
-          return 0;
-        }
-      });
-    }
-  }
-  return null;
 }

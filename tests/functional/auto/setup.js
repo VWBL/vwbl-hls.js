@@ -112,9 +112,6 @@ async function testIdleBufferLength(url, config) {
       self.startStream(url, config, callback, autoplay);
       const video = self.video;
       const maxBufferLength = self.hls.config.maxBufferLength;
-      if (self.ManagedMediaSource) {
-        config.avBufferOffset = Math.max(config.avBufferOffset || 0, 3);
-      }
       video.onprogress = function () {
         const buffered = video.buffered;
         if (buffered.length) {
@@ -330,16 +327,10 @@ async function testSeekOnVOD(url, config) {
           });
         }
       };
-      self.hls.on(self.Hls.Events.MEDIA_ENDED, function (eventName, data) {
-        console.log(
-          '[test] > video  "ended"' + data.stalled ? ' (stalled near end)' : ''
-        );
-        callback({
-          code: 'ended',
-          stalled: data.stalled,
-          logs: self.logString,
-        });
-      });
+      video.onended = function () {
+        console.log('[test] > video  "ended"');
+        callback({ code: 'ended', logs: self.logString });
+      };
 
       video.oncanplaythrough = video.onwaiting = function (e) {
         console.log(
@@ -619,10 +610,8 @@ describe(`testing hls.js playback in the browser on "${browserDescription}"`, fu
 
   const entries = Object.entries(streams);
   if (HlsjsLightBuild) {
-    entries.length = 13;
+    entries.length = 10;
   }
-
-  const isSafari = browserConfig.name === 'safari';
 
   entries
     // eslint-disable-next-line no-unused-vars
@@ -631,13 +620,6 @@ describe(`testing hls.js playback in the browser on "${browserDescription}"`, fu
     .forEach(([name, stream]) => {
       const url = stream.url;
       const config = stream.config || {};
-
-      // Segment media is shorted than playlist duration resulting in overlapping appends on switch
-      // This appears to prevent playback in Safari which causes smoothswitch and VOD ended event tests to fail
-      const isStreamsWithOverlappingAppends =
-        name === 'arte' || name === 'oceansAES';
-
-      config.preferManagedMediaSource = false;
       if (
         stream.skip_ua &&
         stream.skip_ua.some((browserInfo) => {
@@ -664,7 +646,7 @@ describe(`testing hls.js playback in the browser on "${browserDescription}"`, fu
         );
       }
 
-      if (stream.abr && (!isSafari || !isStreamsWithOverlappingAppends)) {
+      if (stream.abr && !HlsjsLightBuild) {
         it(
           `should "smooth switch" to highest level and still play after 2s for ${stream.description}`,
           testSmoothSwitch.bind(null, url, config)
@@ -685,12 +667,10 @@ describe(`testing hls.js playback in the browser on "${browserDescription}"`, fu
           `should play ${stream.description}`,
           testIsPlayingVOD.bind(null, url, config)
         );
-        if (!isSafari || !isStreamsWithOverlappingAppends) {
-          it(
-            `should seek 3s from end and receive video ended event for ${stream.description} with 2 or less buffered ranges`,
-            testSeekOnVOD.bind(null, url, config)
-          );
-        }
+        it(
+          `should seek 3s from end and receive video ended event for ${stream.description} with 2 or less buffered ranges`,
+          testSeekOnVOD.bind(null, url, config)
+        );
         // TODO: Seeking to or past VOD duration should result in the video ending
         // it(`should seek on end and receive video ended event for ${stream.description}`, testSeekEndVOD.bind(null, url));
       }

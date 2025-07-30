@@ -1,11 +1,9 @@
-import chai from 'chai';
-import sinon from 'sinon';
-import sinonChai from 'sinon-chai';
 import BufferOperationQueue from '../../../src/controller/buffer-operation-queue';
-import type {
-  BufferOperation,
-  SourceBufferTrackSet,
-} from '../../../src/types/buffer';
+import type { BufferOperation, SourceBuffers } from '../../../src/types/buffer';
+
+import sinon from 'sinon';
+import chai from 'chai';
+import sinonChai from 'sinon-chai';
 
 chai.use(sinonChai);
 const expect = chai.expect;
@@ -16,12 +14,12 @@ describe('BufferOperationQueue tests', function () {
   let operationQueue;
   const sbMock = {
     audio: {
-      buffer: { updating: false },
+      updating: false,
     },
     video: {
-      buffer: { updating: false },
+      updating: false,
     },
-  } as any as SourceBufferTrackSet;
+  } as any as SourceBuffers;
 
   beforeEach(function () {
     operationQueue = new BufferOperationQueue(sbMock);
@@ -40,7 +38,6 @@ describe('BufferOperationQueue tests', function () {
     it('appends and executes if the queue is empty', function () {
       const execute = sandbox.spy();
       const operation: BufferOperation = {
-        label: '',
         execute,
         onStart: () => {},
         onComplete: () => {},
@@ -51,11 +48,11 @@ describe('BufferOperationQueue tests', function () {
         operationQueue.append(operation, name);
         expect(
           execute,
-          `The ${name} queue operation should have been executed`,
+          `The ${name} queue operation should have been executed`
         ).to.have.callCount(i + 1);
         expect(
           operationQueue.queues[name],
-          `The ${name} queue should have a length of 1`,
+          `The ${name} queue should have a length of 1`
         ).to.have.length(1);
       });
     });
@@ -68,7 +65,6 @@ describe('BufferOperationQueue tests', function () {
 
     const execute = sandbox.spy();
     const operation: BufferOperation = {
-      label: '',
       execute,
       onStart: () => {},
       onComplete: () => {},
@@ -79,11 +75,11 @@ describe('BufferOperationQueue tests', function () {
       operationQueue.append(operation, name);
       expect(
         execute,
-        `The ${name} queue operation should not have been executed`,
+        `The ${name} queue operation should not have been executed`
       ).to.have.not.been.called;
       expect(
         operationQueue.queues[name],
-        `The ${name} queue should have a length of 2`,
+        `The ${name} queue should have a length of 2`
       ).to.have.length(2);
     });
   });
@@ -98,7 +94,7 @@ describe('BufferOperationQueue tests', function () {
         queueNames.forEach((name) => {
           expect(
             operationQueue.queues[name],
-            `The ${name} queue should have a length of 1`,
+            `The ${name} queue should have a length of 1`
           ).to.have.length(1);
         });
       });
@@ -116,7 +112,6 @@ describe('BufferOperationQueue tests', function () {
       const onError = sandbox.spy();
       const error = new Error();
       const operation: BufferOperation = {
-        label: '',
         execute: () => {
           throw error;
         },
@@ -127,15 +122,15 @@ describe('BufferOperationQueue tests', function () {
       queueNames.forEach((name, i) => {
         operationQueue.append(operation, name);
         expect(onError, 'onError should have been called').to.have.callCount(
-          i + 1,
+          i + 1
         );
         expect(
           onError,
-          'onError should have been called with the thrown exception',
+          'onError should have been called with the thrown exception'
         ).to.have.been.calledWith(error);
         expect(
           operationQueue.queues[name],
-          `The ${name} queue should have a length of 0`,
+          `The ${name} queue should have a length of 0`
         ).to.have.length(0);
       });
     });
@@ -144,7 +139,6 @@ describe('BufferOperationQueue tests', function () {
   describe('shiftAndExecute', function () {
     const execute = sandbox.spy();
     const operation: BufferOperation = {
-      label: '',
       execute,
       onStart: () => {},
       onComplete: () => {},
@@ -159,11 +153,11 @@ describe('BufferOperationQueue tests', function () {
         operationQueue.shiftAndExecuteNext(name);
         expect(
           execute,
-          `The ${name} queue operation should have been executed`,
+          `The ${name} queue operation should have been executed`
         ).to.have.callCount(i + 1);
         expect(
           operationQueue.queues[name],
-          `The ${name} queue should have a length of 1`,
+          `The ${name} queue should have a length of 1`
         ).to.have.length(1);
       });
     });

@@ -1,7 +1,6 @@
+import { LoadPolicy, LoaderConfig, RetryConfig } from '../config';
 import { ErrorDetails } from '../errors';
-import type { LoaderConfig, LoadPolicy, RetryConfig } from '../config';
-import type { ErrorData } from '../types/events';
-import type { LoaderResponse } from '../types/loader';
+import { ErrorData } from '../types/events';
 
 export function isTimeoutError(error: ErrorData): boolean {
   switch (error.details) {
@@ -16,7 +15,7 @@ export function isTimeoutError(error: ErrorData): boolean {
 
 export function getRetryConfig(
   loadPolicy: LoadPolicy,
-  error: ErrorData,
+  error: ErrorData
 ): RetryConfig | null {
   const isTimeout = isTimeoutError(error);
   return loadPolicy.default[`${isTimeout ? 'timeout' : 'error'}Retry`];
@@ -24,19 +23,19 @@ export function getRetryConfig(
 
 export function getRetryDelay(
   retryConfig: RetryConfig,
-  retryCount: number,
+  retryCount: number
 ): number {
   // exponential backoff capped to max retry delay
   const backoffFactor =
     retryConfig.backoff === 'linear' ? 1 : Math.pow(2, retryCount);
   return Math.min(
     backoffFactor * retryConfig.retryDelayMs,
-    retryConfig.maxRetryDelayMs,
+    retryConfig.maxRetryDelayMs
   );
 }
 
 export function getLoaderConfigWithoutReties(
-  loderConfig: LoaderConfig,
+  loderConfig: LoaderConfig
 ): LoaderConfig {
   return {
     ...loderConfig,
@@ -51,24 +50,13 @@ export function shouldRetry(
   retryConfig: RetryConfig | null | undefined,
   retryCount: number,
   isTimeout: boolean,
-  loaderResponse?: LoaderResponse | undefined,
+  httpStatus?: number | undefined
 ): retryConfig is RetryConfig & boolean {
-  if (!retryConfig) {
-    return false;
-  }
-  const httpStatus = loaderResponse?.code;
-  const retry =
+  return (
+    !!retryConfig &&
     retryCount < retryConfig.maxNumRetry &&
-    (retryForHttpStatus(httpStatus) || !!isTimeout);
-  return retryConfig.shouldRetry
-    ? retryConfig.shouldRetry(
-        retryConfig,
-        retryCount,
-        isTimeout,
-        loaderResponse,
-        retry,
-      )
-    : retry;
+    (retryForHttpStatus(httpStatus) || !!isTimeout)
+  );
 }
 
 export function retryForHttpStatus(httpStatus: number | undefined) {
